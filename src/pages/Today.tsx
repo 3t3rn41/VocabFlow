@@ -101,9 +101,9 @@ export function Today() {
     : 0;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-5 md:space-y-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold mb-1">学习</h2>
+        <h2 className="text-xl md:text-2xl font-bold mb-1">学习</h2>
         <p className="text-slate-500 text-sm">
           {new Date().toLocaleDateString('zh-CN', { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
@@ -114,11 +114,11 @@ export function Today() {
 
       {/* 主学习卡片 */}
       {isSentenceBook ? (
-        <div className="card-container p-8 flex flex-col items-center gap-6">
-          <ProgressRing percentage={sentenceStats ? Math.min(100, sentenceStats.avgProficiency) : 0} size={160} />
+        <div className="card-container p-6 md:p-8 flex flex-col items-center gap-4 md:gap-6">
+          <ProgressRing percentage={sentenceStats ? Math.min(100, sentenceStats.avgProficiency) : 0} size={140} />
           <div className="text-center">
-            <p className="text-3xl font-bold">
-              {sentenceStats?.practicedToday ?? 0} <span className="text-slate-400 text-xl">句</span>
+            <p className="text-2xl md:text-3xl font-bold">
+              {sentenceStats?.practicedToday ?? 0} <span className="text-slate-400 text-lg md:text-xl">句</span>
             </p>
             <p className="text-sm text-slate-500 mt-1">
               今日已练习 {sentenceStats?.practicedToday ?? 0} 句
@@ -138,23 +138,23 @@ export function Today() {
           </Button>
         </div>
       ) : (
-        <div className="card-container p-8 flex flex-col items-center gap-6">
-          <ProgressRing percentage={pct} size={160} />
+        <div className="card-container p-6 md:p-8 flex flex-col items-center gap-4 md:gap-6">
+          <ProgressRing percentage={pct} size={140} />
           <div className="text-center">
-            <p className="text-3xl font-bold">
-              {progress.finishedToday} <span className="text-slate-400 text-2xl">/ {totalToday + progress.finishedToday}</span>
+            <p className="text-2xl md:text-3xl font-bold">
+              {progress.finishedToday} <span className="text-slate-400 text-xl md:text-2xl">/ {totalToday + progress.finishedToday}</span>
             </p>
             <p className="text-sm text-slate-500 mt-1">
               今日已复习 {progress.finishedToday} 个
             </p>
           </div>
-          <div className="flex gap-6 text-center">
+          <div className="flex gap-4 md:gap-6 text-center">
             <div>
-              <p className="text-2xl font-bold text-orange-500">{progress.dueCount}</p>
+              <p className="text-xl md:text-2xl font-bold text-orange-500">{progress.dueCount}</p>
               <p className="text-xs text-slate-500">待复习</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-green-500">{progress.newCount}</p>
+              <p className="text-xl md:text-2xl font-bold text-green-500">{progress.newCount}</p>
               <p className="text-xs text-slate-500">新词</p>
             </div>
           </div>
@@ -174,30 +174,30 @@ export function Today() {
       )}
 
       {/* 统计概览 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="card-container p-4 text-center">
-          <p className="text-2xl font-bold text-brand-600">
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
+        <div className="card-container p-3 md:p-4 text-center">
+          <p className="text-xl md:text-2xl font-bold text-brand-600">
             {isSentenceBook ? (sentenceStats?.learnedSentences ?? 0) : stats.learned}
           </p>
           <p className="text-xs text-slate-500 mt-1">
             {isSentenceBook ? '已学句子' : '已学单词'}
           </p>
         </div>
-        <div className="card-container p-4 text-center">
-          <p className="text-2xl font-bold text-brand-600">{reviewsTotal}</p>
+        <div className="card-container p-3 md:p-4 text-center">
+          <p className="text-xl md:text-2xl font-bold text-brand-600">{reviewsTotal}</p>
           <p className="text-xs text-slate-500 mt-1">
-            {isSentenceBook ? '总练习次数' : '总复习次数'}
+            {isSentenceBook ? '总练习' : '总复习'}
           </p>
         </div>
-        <div className="card-container p-4 text-center">
-          <p className="text-2xl font-bold text-brand-600">{streakDays}</p>
+        <div className="card-container p-3 md:p-4 text-center">
+          <p className="text-xl md:text-2xl font-bold text-brand-600">{streakDays}</p>
           <p className="text-xs text-slate-500 mt-1">坚持天数</p>
         </div>
       </div>
 
       {/* 词书进度 */}
       {!isSentenceBook && stats.total > 0 && (
-        <div className="card-container p-6">
+        <div className="card-container p-4 md:p-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-slate-500">词书进度</h3>
             <span className="text-sm font-mono">

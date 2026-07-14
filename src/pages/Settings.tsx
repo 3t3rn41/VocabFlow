@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '@/stores/settings';
 import { useWordBookStore } from '@/stores/wordBook';
+import { useAuthStore } from '@/stores/auth';
 import { Button } from '@/components/ui/Button';
 import { useUiStore } from '@/stores/ui';
 import { clearAllSrs, rebuildFsrs } from '@/srs/engine';
 import { getBookMeta, WORD_BOOKS } from '@/data/wordbooks';
-import { getTtsApiKey, setTtsApiKey, isBrowserTtsAvailable } from '@/api/tts';
-import { useState, useEffect } from 'react';
+import { isBrowserTtsAvailable } from '@/api/tts';
+import { useState } from 'react';
 import { clsx } from 'clsx';
 import type { BookKind } from '@/types';
 
@@ -17,9 +18,13 @@ const RETENTION_OPTIONS = [0.85, 0.9, 0.92, 0.95];
    ================================================================ */
 
 const BOOK_COVERS: Record<string, { gradient: string; icon: string }> = {
+  zhongkao: { gradient: 'from-amber-400 via-orange-500 to-red-500', icon: '📘' },
   gaokao: { gradient: 'from-rose-400 via-pink-500 to-purple-500', icon: '🎓' },
+  cet4: { gradient: 'from-green-400 via-emerald-500 to-teal-500', icon: '📗' },
+  cet6: { gradient: 'from-violet-400 via-purple-500 to-indigo-500', icon: '📕' },
   ielts: { gradient: 'from-blue-400 via-indigo-500 to-violet-500', icon: '🌍' },
   'ielts-sentences': { gradient: 'from-emerald-400 via-teal-500 to-cyan-500', icon: '💬' },
+  'language-sense': { gradient: 'from-fuchsia-400 via-pink-500 to-rose-500', icon: '✨' },
 };
 
 function kindLabel(kind: BookKind): string {
@@ -41,11 +46,11 @@ interface BookSwitcherModalProps {
 function BookSwitcherModal({ activeBookId, onSelect, onClose }: BookSwitcherModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-sm animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-800 shadow-2xl animate-fadeInUp"
+        className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-white dark:bg-slate-800 shadow-2xl animate-fadeInUp safe-area-pb"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 弹窗头部 */}
@@ -148,18 +153,12 @@ export function Settings() {
   const { activeBookId, setBook } = useWordBookStore();
   const pushToast = useUiStore((s) => s.pushToast);
   const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
 
   const bookMeta = activeBookId ? getBookMeta(activeBookId) : null;
 
-  // TTS API Key 状态
-  const [ttsKey, setTtsKey] = useState('');
   const [showBookSwitcher, setShowBookSwitcher] = useState(false);
   const browserTtsOk = isBrowserTtsAvailable();
-
-  // 从后端加载 TTS API Key
-  useEffect(() => {
-    setTtsKey(getTtsApiKey() ?? '');
-  }, []);
 
   function handleRetentionChange(value: number) {
     settings.patch({ srsRetention: value });
@@ -188,23 +187,33 @@ export function Settings() {
     navigate('/today');
   }
 
-  async function handleSaveTtsKey() {
-    await setTtsApiKey(ttsKey.trim() || null);
-    pushToast(
-      ttsKey.trim() ? 'mimo TTS API Key 已保存' : '已清除 mimo TTS API Key',
-      'success',
-    );
-  }
-
-  async function handleClearTtsKey() {
-    setTtsKey('');
-    await setTtsApiKey(null);
-    pushToast('已清除 mimo TTS API Key', 'success');
+  function handleLogout() {
+    if (!confirm('确认退出登录？')) return;
+    logout();
   }
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <h2 className="text-2xl font-bold">设置</h2>
+
+      {/* 用户信息 */}
+      <section className="card-container p-6 space-y-4">
+        <h3 className="font-semibold">账号</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
+              {user?.username?.charAt(0).toUpperCase() ?? '?'}
+            </div>
+            <div>
+              <p className="font-medium">{user?.username ?? '未知用户'}</p>
+              <p className="text-xs text-slate-400">已登录</p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={handleLogout}>
+            退出登录
+          </Button>
+        </div>
+      </section>
 
       {/* 当前词书 */}
       <section className="card-container p-6 space-y-4">
@@ -305,33 +314,12 @@ export function Settings() {
       {/* TTS 发音 */}
       <section className="card-container p-6 space-y-4">
         <h3 className="font-semibold">TTS 发音</h3>
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-sm">浏览器内置语音</span>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {browserTtsOk ? '✅ 可用' : '❌ 不支持，将使用 mimo TTS'}
-            </p>
-          </div>
-        </div>
         <div className="space-y-2">
-          <label className="text-sm">mimo TTS API Key</label>
-          <p className="text-xs text-slate-400">
-            当浏览器不支持语音合成时，将使用小米墨墨 mimo TTS 服务进行发音。在浏览器支持时作为备用。
-          </p>
-          <input
-            type="password"
-            className="input-base w-full"
-            placeholder="留空则仅使用浏览器内置语音"
-            value={ttsKey}
-            onChange={(e) => setTtsKey(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <Button variant="primary" size="sm" onClick={handleSaveTtsKey}>
-              保存
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleClearTtsKey}>
-              清除
-            </Button>
+          <p className="text-sm text-slate-500">音频播放优先级：</p>
+          <div className="text-xs text-slate-400 space-y-1">
+            <p>① 本地缓存音频（优先）</p>
+            <p>② 浏览器内置语音 — {browserTtsOk ? '✅ 可用' : '❌ 不支持'}</p>
+            <p>③ mimo TTS 在线服务（最终回退）</p>
           </div>
         </div>
       </section>

@@ -1,10 +1,12 @@
 /**
  * 句子练习进度路由
  * 对应 sentence_progress / sentence_position / sentence_mastery 表
+ * 所有操作需认证，按用户隔离数据
  */
 
 import { Router } from 'express';
 import { query, execute } from '../db.js';
+import { requireAuth } from '../middleware/auth.js';
 
 export const sentenceRouter = Router();
 
@@ -13,13 +15,14 @@ export const sentenceRouter = Router();
 /* ------------------------------------------------------------------ */
 
 /** 加载句子进度 (聚合为 Record<"band:topicIdx", number[]>) */
-sentenceRouter.get('/progress', async (_req, res) => {
+sentenceRouter.get('/progress', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
     const rows = await query<{
       band: number;
       topic_idx: number;
       dialogue_idx: number;
-    }>('SELECT band, topic_idx, dialogue_idx FROM sentence_progress');
+    }>('SELECT band, topic_idx, dialogue_idx FROM sentence_progress WHERE user_id = ?', [userId]);
 
     const progress: Record<string, number[]> = {};
     for (const r of rows) {
@@ -34,8 +37,9 @@ sentenceRouter.get('/progress', async (_req, res) => {
 });
 
 /** 标记句子完成 (INSERT IGNORE 防重复) */
-sentenceRouter.post('/complete', async (req, res) => {
+sentenceRouter.post('/complete', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
     const { band, topicIdx, dialogueIdx } = req.body as {
       band: number;
       topicIdx: number;
@@ -43,8 +47,8 @@ sentenceRouter.post('/complete', async (req, res) => {
     };
 
     await execute(
-      `INSERT IGNORE INTO sentence_progress (band, topic_idx, dialogue_idx) VALUES (?, ?, ?)`,
-      [band, topicIdx, dialogueIdx],
+      `INSERT IGNORE INTO sentence_progress (user_id, band, topic_idx, dialogue_idx) VALUES (?, ?, ?, ?)`,
+      [userId, band, topicIdx, dialogueIdx],
     );
 
     res.json({ ok: true });
@@ -55,23 +59,11 @@ sentenceRouter.post('/complete', async (req, res) => {
 
 /* ------------------------------------------------------------------ */
 /* 句子位置 — GET 返回下一个未完成句子                                  */
-/*                                                                    */
-/* 逻辑：                                                             */
-/*   1. 读取上次保存的位置 (band, topicIdx, dialogueIdx)               */
-/*   2. 从该位置开始向后搜索，找到第一个未完成的句子                   */
-/*   3. 若该 band 中全部完成，则继续搜索后续 band                     */
-/*   4. 若所有句子都已完成，返回第一个 band 的第一个句子               */
 /* ------------------------------------------------------------------ */
 
-// 雅思日常对话的 band/topic/dialogue 结构（前端定义的固定数据）
-// 这里由前端通过 query param 传入结构信息，后端只做数据库查询
-sentenceRouter.get('/position', async (req, res) => {
+sentenceRouter.get('/position', requireAuth, async (req, res) => {
   try {
-    // 前端传入所有 band/topic/dialogue 的数量结构
-    // 格式: ?structure=band0Topics,band1Topics,...
-    // 例如: ?structure=3,4,2 表示 band0 有3个topic, band1 有4个, band2 有2个
-    // 每个topic的dialogue数量通过另一个参数传入
-    // 但更简单的方式：前端传入完整的结构 JSON
+    const userId = req.user!.userId;
     const structureParam = req.query.structure as string | undefined;
 
     // 读取已保存的位置
@@ -79,14 +71,14 @@ sentenceRouter.get('/position', async (req, res) => {
       band: number;
       topic_idx: number;
       dialogue_idx: number;
-    }>('SELECT band, topic_idx, dialogue_idx FROM sentence_position WHERE id = 1');
+    }>('SELECT band, topic_idx, dialogue_idx FROM sentence_position WHERE user_id = ?', [userId]);
 
     // 读取所有已完成的句子
     const completedRows = await query<{
       band: number;
       topic_idx: number;
       dialogue_idx: number;
-    }>('SELECT band, topic_idx, dialogue_idx FROM sentence_progress');
+    }>('SELECT band, topic_idx, dialogue_idx FROM sentence_progress WHERE user_id = ?', [userId]);
 
     const completedSet = new Set<string>();
     for (const r of completedRows) {
@@ -109,7 +101,6 @@ sentenceRouter.get('/position', async (req, res) => {
     }
 
     // 解析结构: JSON array of { band, topics: number[] }
-    // topics[i] = 该 topic 的 dialogue 数量
     const structure = JSON.parse(structureParam) as Array<{
       band: number;
       topics: number[];
@@ -138,7 +129,6 @@ sentenceRouter.get('/position', async (req, res) => {
         for (let di = dialogueStart; di < dialogueCount; di++) {
           const key = `${bandInfo.band}:${ti}:${di}`;
           if (!completedSet.has(key)) {
-            // 找到未完成的句子
             res.json({
               band: bandInfo.band,
               topicIdx: ti,
@@ -165,9 +155,10 @@ sentenceRouter.get('/position', async (req, res) => {
   }
 });
 
-/** 保存句子位置 (UPSERT 单行) */
-sentenceRouter.post('/position', async (req, res) => {
+/** 保存句子位置 (UPSERT 按用户) */
+sentenceRouter.post('/position', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
     const { band, topicIdx, dialogueIdx } = req.body as {
       band: number;
       topicIdx: number;
@@ -175,10 +166,10 @@ sentenceRouter.post('/position', async (req, res) => {
     };
 
     await execute(
-      `INSERT INTO sentence_position (id, band, topic_idx, dialogue_idx)
-       VALUES (1, ?, ?, ?)
+      `INSERT INTO sentence_position (user_id, band, topic_idx, dialogue_idx)
+       VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE band = VALUES(band), topic_idx = VALUES(topic_idx), dialogue_idx = VALUES(dialogue_idx)`,
-      [band, topicIdx, dialogueIdx],
+      [userId, band, topicIdx, dialogueIdx],
     );
 
     res.json({ ok: true });
@@ -192,8 +183,9 @@ sentenceRouter.post('/position', async (req, res) => {
 /* ------------------------------------------------------------------ */
 
 /** 加载所有熟知标记 (聚合为 Record<"band:topicIdx", number[]>) */
-sentenceRouter.get('/mastery', async (_req, res) => {
+sentenceRouter.get('/mastery', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
     const rows = await query<{
       band: number;
       topic_idx: number;
@@ -203,9 +195,8 @@ sentenceRouter.get('/mastery', async (_req, res) => {
       pause_ms: number;
       tab_count: number;
       typo_count: number;
-    }>('SELECT band, topic_idx, dialogue_idx, source, proficiency, pause_ms, tab_count, typo_count FROM sentence_mastery');
+    }>('SELECT band, topic_idx, dialogue_idx, source, proficiency, pause_ms, tab_count, typo_count FROM sentence_mastery WHERE user_id = ?', [userId]);
 
-    // 返回两种结构：mastery map (用于跳过) + detail list (用于展示)
     const masteryMap: Record<string, number[]> = {};
     const details: Array<{
       band: number;
@@ -242,8 +233,9 @@ sentenceRouter.get('/mastery', async (_req, res) => {
 });
 
 /** 标记句子为熟知 */
-sentenceRouter.post('/mastery', async (req, res) => {
+sentenceRouter.post('/mastery', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
     const { band, topicIdx, dialogueIdx, source, proficiency, pauseMs, tabCount, typoCount } = req.body as {
       band: number;
       topicIdx: number;
@@ -256,8 +248,8 @@ sentenceRouter.post('/mastery', async (req, res) => {
     };
 
     await execute(
-      `INSERT INTO sentence_mastery (band, topic_idx, dialogue_idx, source, proficiency, pause_ms, tab_count, typo_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO sentence_mastery (user_id, band, topic_idx, dialogue_idx, source, proficiency, pause_ms, tab_count, typo_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          source = VALUES(source),
          proficiency = VALUES(proficiency),
@@ -265,6 +257,7 @@ sentenceRouter.post('/mastery', async (req, res) => {
          tab_count = VALUES(tab_count),
          typo_count = VALUES(typo_count)`,
       [
+        userId,
         band,
         topicIdx,
         dialogueIdx,
@@ -283,8 +276,9 @@ sentenceRouter.post('/mastery', async (req, res) => {
 });
 
 /** 取消句子熟知标记 */
-sentenceRouter.delete('/mastery', async (req, res) => {
+sentenceRouter.delete('/mastery', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
     const { band, topicIdx, dialogueIdx } = req.body as {
       band: number;
       topicIdx: number;
@@ -292,8 +286,8 @@ sentenceRouter.delete('/mastery', async (req, res) => {
     };
 
     await execute(
-      `DELETE FROM sentence_mastery WHERE band = ? AND topic_idx = ? AND dialogue_idx = ?`,
-      [band, topicIdx, dialogueIdx],
+      `DELETE FROM sentence_mastery WHERE user_id = ? AND band = ? AND topic_idx = ? AND dialogue_idx = ?`,
+      [userId, band, topicIdx, dialogueIdx],
     );
 
     res.json({ ok: true });
@@ -303,12 +297,13 @@ sentenceRouter.delete('/mastery', async (req, res) => {
 });
 
 /** 清除某 band 的所有熟知标记 */
-sentenceRouter.delete('/mastery/band/:band', async (req, res) => {
+sentenceRouter.delete('/mastery/band/:band', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
     const band = Number(req.params.band);
     await execute(
-      `DELETE FROM sentence_mastery WHERE band = ?`,
-      [band],
+      `DELETE FROM sentence_mastery WHERE user_id = ? AND band = ?`,
+      [userId, band],
     );
     res.json({ ok: true });
   } catch (e) {
@@ -321,8 +316,9 @@ sentenceRouter.delete('/mastery/band/:band', async (req, res) => {
 /* ------------------------------------------------------------------ */
 
 /** 记录一次句子练习 (含熟练度数据) */
-sentenceRouter.post('/log', async (req, res) => {
+sentenceRouter.post('/log', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
     const { band, topicIdx, dialogueIdx, proficiency, pauseMs, tabCount, typoCount } = req.body as {
       band: number;
       topicIdx: number;
@@ -334,9 +330,10 @@ sentenceRouter.post('/log', async (req, res) => {
     };
 
     await execute(
-      `INSERT INTO sentence_practice_log (band, topic_idx, dialogue_idx, proficiency, pause_ms, tab_count, typo_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sentence_practice_log (user_id, band, topic_idx, dialogue_idx, proficiency, pause_ms, tab_count, typo_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        userId,
         band,
         topicIdx,
         dialogueIdx,
@@ -354,30 +351,34 @@ sentenceRouter.post('/log', async (req, res) => {
 });
 
 /** 获取句子练习统计 */
-sentenceRouter.get('/stats', async (_req, res) => {
+sentenceRouter.get('/stats', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
+
     // 已学句子数 (distinct band:topic:dialogue)
     const learnedRows = await query<{ cnt: number }>(
-      'SELECT COUNT(*) AS cnt FROM (SELECT DISTINCT band, topic_idx, dialogue_idx FROM sentence_practice_log) AS t',
+      'SELECT COUNT(*) AS cnt FROM (SELECT DISTINCT band, topic_idx, dialogue_idx FROM sentence_practice_log WHERE user_id = ?) AS t',
+      [userId],
     );
     const learnedSentences = learnedRows[0]?.cnt ?? 0;
 
     // 总练习次数
     const totalRows = await query<{ cnt: number }>(
-      'SELECT COUNT(*) AS cnt FROM sentence_practice_log',
+      'SELECT COUNT(*) AS cnt FROM sentence_practice_log WHERE user_id = ?',
+      [userId],
     );
     const totalPractices = totalRows[0]?.cnt ?? 0;
 
-    // 坚持天数: 从 sentence_practice_log 和 sentence_progress 的 created_at 中提取日期
+    // 坚持天数: 从 sentence_practice_log 和 sentence_progress 的 completed_at 中提取日期
     const dateRows = await query<{ d: string }>(
-      `SELECT DISTINCT DATE(practiced_at) AS d FROM sentence_practice_log
+      `SELECT DISTINCT DATE(practiced_at) AS d FROM sentence_practice_log WHERE user_id = ?
        UNION
-       SELECT DISTINCT DATE(created_at) AS d FROM sentence_progress`,
+       SELECT DISTINCT DATE(completed_at) AS d FROM sentence_progress WHERE user_id = ?`,
+      [userId, userId],
     );
     const activityDates = new Set<string>();
     for (const r of dateRows) {
       if (r.d) {
-        // 转为 YYYY-MM-DD 格式
         const d = new Date(r.d);
         if (!isNaN(d.getTime())) {
           activityDates.add(d.toISOString().slice(0, 10));
@@ -400,13 +401,15 @@ sentenceRouter.get('/stats', async (_req, res) => {
 
     // 今日练习次数
     const todayRows = await query<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM sentence_practice_log WHERE DATE(practiced_at) = CURDATE()`,
+      `SELECT COUNT(*) AS cnt FROM sentence_practice_log WHERE user_id = ? AND DATE(practiced_at) = UTC_DATE()`,
+      [userId],
     );
     const practicedToday = todayRows[0]?.cnt ?? 0;
 
     // 平均熟练度
     const avgRows = await query<{ avg: number | null }>(
-      'SELECT AVG(proficiency) AS avg FROM sentence_practice_log',
+      'SELECT AVG(proficiency) AS avg FROM sentence_practice_log WHERE user_id = ?',
+      [userId],
     );
     const avgProficiency = avgRows[0]?.avg ?? 0;
 
@@ -423,15 +426,18 @@ sentenceRouter.get('/stats', async (_req, res) => {
 });
 
 /** 获取熟练度历史 (近30天每日平均熟练度 + 近20条练习记录) */
-sentenceRouter.get('/proficiency-history', async (_req, res) => {
+sentenceRouter.get('/proficiency-history', requireAuth, async (req, res) => {
   try {
+    const userId = req.user!.userId;
+
     // 近30天每日平均熟练度
     const dailyRows = await query<{ d: string; avg_prof: number; cnt: number }>(
       `SELECT DATE(practiced_at) AS d, AVG(proficiency) AS avg_prof, COUNT(*) AS cnt
        FROM sentence_practice_log
-       WHERE practiced_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+       WHERE user_id = ? AND practiced_at >= DATE_SUB(UTC_DATE(), INTERVAL 30 DAY)
        GROUP BY DATE(practiced_at)
        ORDER BY d ASC`,
+      [userId],
     );
 
     // 近50条练习记录 (用于查看趋势)
@@ -448,8 +454,10 @@ sentenceRouter.get('/proficiency-history', async (_req, res) => {
     }>(
       `SELECT id, band, topic_idx, dialogue_idx, proficiency, pause_ms, tab_count, typo_count, practiced_at
        FROM sentence_practice_log
+       WHERE user_id = ?
        ORDER BY practiced_at DESC
        LIMIT 50`,
+      [userId],
     );
 
     res.json({

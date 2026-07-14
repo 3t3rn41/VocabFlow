@@ -18,7 +18,7 @@ USE vocabflow;
 -- ================================================================
 DROP TABLE IF EXISTS `word_books`;
 CREATE TABLE `word_books` (
-  `id`          VARCHAR(64)   NOT NULL COMMENT '词书ID (gaokao / ielts / ielts-sentences)',
+  `id`          VARCHAR(64)   NOT NULL COMMENT '词书ID (zhongkao / gaokao / cet4 / cet6 / ielts / ielts-sentences / language-sense)',
   `title`       VARCHAR(128)  NOT NULL COMMENT '词书标题',
   `description` TEXT          NULL     COMMENT '词书描述',
   `kind`        ENUM('word', 'sentence') NOT NULL DEFAULT 'word' COMMENT '词书类型',
@@ -103,12 +103,29 @@ CREATE TABLE `sentence_dialogues` (
   COMMENT='句子练习 Dialogue 表';
 
 -- ================================================================
---  4. SRS 卡片状态表 (srs_cards)
---  存储每个单词的 FSRS-4.5 间隔重复算法状态
+--  4. 用户表 (users)
+--  存储用户账号信息，支持多用户数据隔离
+-- ================================================================
+DROP TABLE IF EXISTS `users`;
+CREATE TABLE `users` (
+  `id`            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `username`      VARCHAR(64)   NOT NULL COMMENT '用户名 (唯一)',
+  `password_hash` VARCHAR(255)  NOT NULL COMMENT 'bcrypt 加密的密码哈希',
+  `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
+  `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='用户表';
+
+-- ================================================================
+--  5. SRS 卡片状态表 (srs_cards)
+--  存储每个单词的 FSRS-4.5 间隔重复算法状态 (按用户隔离)
 -- ================================================================
 DROP TABLE IF EXISTS `srs_cards`;
 CREATE TABLE `srs_cards` (
   `id`            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `user_id`       BIGINT        NOT NULL COMMENT '所属用户ID',
   `word_id`       VARCHAR(128)  NOT NULL COMMENT '关联的单词业务ID',
   `book_id`       VARCHAR(64)   NOT NULL COMMENT '所属词书ID',
   `stability`     DOUBLE        NOT NULL DEFAULT 0 COMMENT 'FSRS 稳定性 (越大遗忘越慢)',
@@ -122,74 +139,82 @@ CREATE TABLE `srs_cards` (
   `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
   `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_word_id` (`word_id`),
-  KEY `idx_book_id` (`book_id`),
-  KEY `idx_due` (`due`),
+  UNIQUE KEY `uk_user_word_id` (`user_id`, `word_id`),
+  KEY `idx_user_book_id` (`user_id`, `book_id`),
+  KEY `idx_user_due` (`user_id`, `due`),
   KEY `idx_state` (`state`),
+  CONSTRAINT `fk_cards_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_cards_book` FOREIGN KEY (`book_id`) REFERENCES `word_books`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='SRS 卡片状态表 (FSRS-4.5)';
 
 -- ================================================================
---  5. 复习日志表 (review_logs)
---  记录每次复习操作的日志，用于统计和分析
+--  6. 复习日志表 (review_logs)
+--  记录每次复习操作的日志，用于统计和分析 (按用户隔离)
 -- ================================================================
 DROP TABLE IF EXISTS `review_logs`;
 CREATE TABLE `review_logs` (
   `id`            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `user_id`       BIGINT        NOT NULL COMMENT '所属用户ID',
   `word_id`       VARCHAR(128)  NOT NULL COMMENT '关联的单词业务ID',
   `book_id`       VARCHAR(64)   NOT NULL COMMENT '所属词书ID',
   `reviewed_at`   DATETIME      NOT NULL COMMENT '复习时间',
   `grade`         TINYINT UNSIGNED NOT NULL COMMENT '评分: 0=Again 1=Hard 2=Good 3=Easy',
   `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
   PRIMARY KEY (`id`),
-  KEY `idx_word_id` (`word_id`),
-  KEY `idx_book_id` (`book_id`),
-  KEY `idx_reviewed_at` (`reviewed_at`),
+  KEY `idx_user_word_id` (`user_id`, `word_id`),
+  KEY `idx_user_book_id` (`user_id`, `book_id`),
+  KEY `idx_user_reviewed_at` (`user_id`, `reviewed_at`),
+  CONSTRAINT `fk_logs_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_logs_book` FOREIGN KEY (`book_id`) REFERENCES `word_books`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='复习日志表';
 
 -- ================================================================
---  6. 句子练习进度表 (sentence_progress)
---  记录用户在句子练习中完成的句子
+--  7. 句子练习进度表 (sentence_progress)
+--  记录用户在句子练习中完成的句子 (按用户隔离)
 -- ================================================================
 DROP TABLE IF EXISTS `sentence_progress`;
 CREATE TABLE `sentence_progress` (
   `id`            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `user_id`       BIGINT        NOT NULL COMMENT '所属用户ID',
   `band`          INT UNSIGNED  NOT NULL COMMENT 'Band 编号',
   `topic_idx`     INT UNSIGNED  NOT NULL COMMENT 'Topic 序号',
   `dialogue_idx`  INT UNSIGNED  NOT NULL COMMENT 'Dialogue 序号',
   `completed_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '完成时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_band_topic_dialogue` (`band`, `topic_idx`, `dialogue_idx`),
-  KEY `idx_band_topic` (`band`, `topic_idx`)
+  UNIQUE KEY `uk_user_band_topic_dialogue` (`user_id`, `band`, `topic_idx`, `dialogue_idx`),
+  KEY `idx_user_band_topic` (`user_id`, `band`, `topic_idx`),
+  CONSTRAINT `fk_progress_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='句子练习进度表';
 
 -- ================================================================
---  7. 句子练习位置表 (sentence_position)
---  记录用户上次练习到的位置，刷新后可恢复
---  单行表，只存储当前用户的位置（如需多用户可加 user_id）
+--  8. 句子练习位置表 (sentence_position)
+--  记录用户上次练习到的位置，刷新后可恢复 (按用户隔离)
 -- ================================================================
 DROP TABLE IF EXISTS `sentence_position`;
 CREATE TABLE `sentence_position` (
   `id`            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `user_id`       BIGINT        NOT NULL COMMENT '所属用户ID',
   `band`          INT UNSIGNED  NOT NULL COMMENT '当前 Band 编号',
   `topic_idx`     INT UNSIGNED  NOT NULL COMMENT '当前 Topic 序号',
   `dialogue_idx`  INT UNSIGNED  NOT NULL COMMENT '当前 Dialogue 序号',
   `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后更新时间',
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_id` (`user_id`),
+  CONSTRAINT `fk_position_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='句子练习位置表 (单行)';
+  COMMENT='句子练习位置表 (每用户一行)';
 
 -- ================================================================
---  8. 用户设置表 (user_settings)
---  存储用户偏好设置（对应前端 settings store）
+--  9. 用户设置表 (user_settings)
+--  存储用户偏好设置（对应前端 settings store，按用户隔离）
 -- ================================================================
 DROP TABLE IF EXISTS `user_settings`;
 CREATE TABLE `user_settings` (
   `id`              BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `user_id`         BIGINT        NOT NULL COMMENT '所属用户ID',
   `theme`           ENUM('light', 'dark', 'system') NOT NULL DEFAULT 'system' COMMENT '主题',
   `auto_play_audio` TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '自动朗读发音',
   `srs_retention`   DECIMAL(3,2)  NOT NULL DEFAULT 0.90 COMMENT 'FSRS 目标保留率 (0.00-1.00)',
@@ -198,130 +223,38 @@ CREATE TABLE `user_settings` (
   `shuffle_words`   TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '单词模式下是否打乱顺序',
   `tts_api_key`     VARCHAR(512)  NULL     COMMENT 'mimo TTS API Key (加密存储)',
   `updated_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_id` (`user_id`),
+  CONSTRAINT `fk_settings_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='用户设置表';
 
 -- ================================================================
---  9. 活跃词书表 (active_book)
---  记录当前选中的词书（单行表）
+--  10. 活跃词书表 (active_book)
+--  记录当前选中的词书 (按用户隔离，每用户一行)
 -- ================================================================
 DROP TABLE IF EXISTS `active_book`;
 CREATE TABLE `active_book` (
   `id`          BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `user_id`     BIGINT        NOT NULL COMMENT '所属用户ID',
   `book_id`     VARCHAR(64)   NOT NULL COMMENT '当前活跃词书ID',
   `updated_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_id` (`user_id`),
+  CONSTRAINT `fk_active_book_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_active_book` FOREIGN KEY (`book_id`) REFERENCES `word_books`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='当前活跃词书表 (单行)';
+  COMMENT='当前活跃词书表 (每用户一行)';
 
 -- ================================================================
---  初始化数据
--- ================================================================
-
--- 插入词书元数据
-INSERT INTO `word_books` (`id`, `title`, `description`, `kind`, `total`) VALUES
-  ('gaokao',          '高考核心词汇', '高考英语 3429 个核心必背词汇',                   'word',     3429),
-  ('ielts',           '雅思核心词汇', '雅思核心词汇，含音标、词性、例句',                'word',     605),
-  ('ielts-sentences', '雅思日常对话', '雅思日常对话练习，6 个 Band，710 句对话',         'sentence', 710);
-
--- 插入默认用户设置
-INSERT INTO `user_settings` (`theme`, `auto_play_audio`, `srs_retention`, `keyboard_layout`, `daily_new_limit`, `shuffle_words`)
-VALUES ('system', 1, 0.90, '3key', 20, 0);
-
--- ================================================================
---  视图：学习统计概览
--- ================================================================
-CREATE OR REPLACE VIEW `v_learning_summary` AS
-SELECT
-  b.id    AS book_id,
-  b.title AS book_title,
-  b.total AS total_words,
-  COUNT(DISTINCT c.word_id) AS learned_words,
-  SUM(CASE WHEN c.due <= NOW() THEN 1 ELSE 0 END) AS due_words
-FROM `word_books` b
-LEFT JOIN `srs_cards` c ON c.book_id = b.id
-WHERE b.kind = 'word'
-GROUP BY b.id, b.title, b.total;
-
--- ================================================================
---  视图：今日复习统计
--- ================================================================
-CREATE OR REPLACE VIEW `v_today_stats` AS
-SELECT
-  l.book_id,
-  COUNT(*) AS today_count,
-  SUM(CASE WHEN l.grade = 0 THEN 1 ELSE 0 END) AS again_count,
-  SUM(CASE WHEN l.grade = 1 THEN 1 ELSE 0 END) AS hard_count,
-  SUM(CASE WHEN l.grade = 2 THEN 1 ELSE 0 END) AS good_count,
-  SUM(CASE WHEN l.grade = 3 THEN 1 ELSE 0 END) AS easy_count
-FROM `review_logs` l
-WHERE DATE(l.reviewed_at) = CURDATE()
-GROUP BY l.book_id;
-
--- ================================================================
---  视图：连续学习天数
--- ================================================================
-CREATE OR REPLACE VIEW `v_streak_days` AS
-SELECT
-  COUNT(DISTINCT DATE(reviewed_at)) AS streak_days
-FROM `review_logs`
-WHERE reviewed_at >= (
-  SELECT COALESCE(
-    (SELECT DATE(DATE_SUB(MIN(reviewed_at), INTERVAL 1 DAY))
-     FROM `review_logs`
-     WHERE DATE(reviewed_at) < CURDATE()
-       AND DATE(reviewed_at) NOT IN (
-         SELECT DISTINCT DATE(reviewed_at) FROM `review_logs`
-       )
-    ),
-    DATE_SUB(CURDATE(), INTERVAL 365 DAY)
-  )
-);
-
--- ================================================================
---  存储过程：获取今日复习队列
--- ================================================================
-DELIMITER //
-DROP PROCEDURE IF EXISTS `sp_get_review_queue`//
-CREATE PROCEDURE `sp_get_review_queue`(
-  IN p_book_id VARCHAR(64),
-  IN p_new_limit INT,
-  IN p_review_limit INT
-)
-BEGIN
-  -- 到期卡片
-  SELECT
-    w.word_id, w.word, w.phonetic, w.pos, w.meaning_cn,
-    w.example, w.example_cn, w.book_id, 0 AS is_new
-  FROM `words` w
-  INNER JOIN `srs_cards` c ON c.word_id = w.word_id
-  WHERE w.book_id = p_book_id
-    AND c.due <= NOW()
-  ORDER BY c.due ASC
-  LIMIT p_review_limit;
-
-  -- 新词（无卡片的单词）
-  SELECT
-    w.word_id, w.word, w.phonetic, w.pos, w.meaning_cn,
-    w.example, w.example_cn, w.book_id, 1 AS is_new
-  FROM `words` w
-  LEFT JOIN `srs_cards` c ON c.word_id = w.word_id
-  WHERE w.book_id = p_book_id
-    AND c.word_id IS NULL
-  LIMIT p_new_limit;
-END//
-DELIMITER ;
-
--- ================================================================
---  10. 句子熟知标记表 (sentence_mastery)
---  用户手动标记或系统自动判定的熟知句子
+--  11. 句子熟知标记表 (sentence_mastery)
+--  用户手动标记或系统自动判定的熟知句子 (按用户隔离)
 --  练习时自动跳过熟知句子，除非用户选择"复习全部"
 -- ================================================================
 DROP TABLE IF EXISTS `sentence_mastery`;
 CREATE TABLE `sentence_mastery` (
   `id`            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `user_id`       BIGINT        NOT NULL COMMENT '所属用户ID',
   `band`          INT UNSIGNED  NOT NULL COMMENT 'Band 编号',
   `topic_idx`     INT UNSIGNED  NOT NULL COMMENT 'Topic 序号',
   `dialogue_idx`  INT UNSIGNED  NOT NULL COMMENT 'Dialogue 序号',
@@ -333,18 +266,20 @@ CREATE TABLE `sentence_mastery` (
   `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_band_topic_dialogue` (`band`, `topic_idx`, `dialogue_idx`),
-  KEY `idx_band_topic` (`band`, `topic_idx`)
+  UNIQUE KEY `uk_user_band_topic_dialogue` (`user_id`, `band`, `topic_idx`, `dialogue_idx`),
+  KEY `idx_user_band_topic` (`user_id`, `band`, `topic_idx`),
+  CONSTRAINT `fk_mastery_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='句子熟知标记表';
 
 -- ================================================================
---  11. 句子练习历史记录表 (sentence_practice_log)
---  每次句子练习完成时记录一条，用于追踪熟练度变化趋势
+--  12. 句子练习历史记录表 (sentence_practice_log)
+--  每次句子练习完成时记录一条，用于追踪熟练度变化趋势 (按用户隔离)
 -- ================================================================
 DROP TABLE IF EXISTS `sentence_practice_log`;
 CREATE TABLE `sentence_practice_log` (
   `id`            BIGINT        NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+  `user_id`       BIGINT        NOT NULL COMMENT '所属用户ID',
   `band`          INT UNSIGNED  NOT NULL COMMENT 'Band 编号',
   `topic_idx`     INT UNSIGNED  NOT NULL COMMENT 'Topic 序号',
   `dialogue_idx`  INT UNSIGNED  NOT NULL COMMENT 'Dialogue 序号',
@@ -354,10 +289,21 @@ CREATE TABLE `sentence_practice_log` (
   `typo_count`    INT UNSIGNED  NOT NULL DEFAULT 0 COMMENT '拼错次数',
   `practiced_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '练习时间',
   PRIMARY KEY (`id`),
-  KEY `idx_band_topic_dialogue` (`band`, `topic_idx`, `dialogue_idx`),
-  KEY `idx_practiced_at` (`practiced_at`)
+  KEY `idx_user_band_topic_dialogue` (`user_id`, `band`, `topic_idx`, `dialogue_idx`),
+  KEY `idx_user_practiced_at` (`user_id`, `practiced_at`),
+  CONSTRAINT `fk_practice_log_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='句子练习历史记录表';
+
+-- ================================================================
+--  初始化数据
+-- ================================================================
+
+-- 插入词书元数据
+INSERT INTO `word_books` (`id`, `title`, `description`, `kind`, `total`) VALUES
+  ('gaokao',          '高考核心词汇', '高考英语 3429 个核心必背词汇',                   'word',     3429),
+  ('ielts',           '雅思核心词汇', '雅思核心词汇，含音标、词性、例句',                'word',     605),
+  ('ielts-sentences', '雅思日常对话', '雅思日常对话练习，6 个 Band，710 句对话',         'sentence', 710);
 
 -- ================================================================
 --  完成提示

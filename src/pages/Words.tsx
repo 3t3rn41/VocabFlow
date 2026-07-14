@@ -55,9 +55,9 @@ export function Words() {
   const totalPages = Math.ceil(allWords.length / PAGE_SIZE);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-4 md:space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">单词库</h2>
+        <h2 className="text-xl md:text-2xl font-bold">单词库</h2>
         {bookMeta && (
           <span className="text-sm text-slate-500">
             共 {allWords.length} 词
@@ -77,18 +77,18 @@ export function Words() {
           <button
             key={w.id}
             onClick={() => navigate(`/words/${encodeURIComponent(w.id)}`)}
-            className="w-full text-left card-container p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"
+            className="w-full text-left card-container p-3 md:p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition active:scale-[0.98]"
           >
             <div className="flex items-center justify-between">
-              <div>
-                <span className="font-medium text-lg">{w.word}</span>
-                {w.phonetic && <span className="ml-3 text-slate-400 text-sm">{w.phonetic}</span>}
+              <div className="min-w-0">
+                <span className="font-medium text-base md:text-lg">{w.word}</span>
+                {w.phonetic && <span className="ml-2 md:ml-3 text-slate-400 text-xs md:text-sm">{w.phonetic}</span>}
               </div>
               {w.pos && (
-                <span className="text-xs text-brand-500 italic">{w.pos}</span>
+                <span className="text-xs text-brand-500 italic flex-shrink-0">{w.pos}</span>
               )}
             </div>
-            <p className="text-sm text-slate-500 mt-1">{w.meaning_cn}</p>
+            <p className="text-sm text-slate-500 mt-1 truncate">{w.meaning_cn}</p>
           </button>
         ))}
         {!results.length && (

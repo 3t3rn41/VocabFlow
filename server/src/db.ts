@@ -14,6 +14,10 @@ const DB_CONFIG = {
   connectionLimit: 10,
   queueLimit: 0,
   charset: 'utf8mb4',
+  // 所有 DATETIME 值以 UTC 存储（toMySQLDateTime 使用 toISOString），
+  // 必须告诉 mysql2 读取时也按 UTC 解析，否则会用服务器本地时区（如 UTC+8）解析，
+  // 导致时间偏移 8 小时。
+  timezone: '+00:00',
 };
 
 export const pool = mysql.createPool(DB_CONFIG);

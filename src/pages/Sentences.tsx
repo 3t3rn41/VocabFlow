@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getSentenceBands } from '@/data/wordbooks';
+import { getSentenceBands, getBookMeta } from '@/data/wordbooks';
 import { speakWithBrowserTts } from '@/api/tts';
 import {
   sentenceApi,
@@ -8,6 +8,7 @@ import {
 } from '@/api/client';
 import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
+import { useWordBookStore } from '@/stores/wordBook';
 import { Button } from '@/components/ui/Button';
 import { clsx } from 'clsx';
 import type { SentenceBand, SentenceTopic } from '@/types';
@@ -194,7 +195,9 @@ function WordSlot({ targetWord, typedWord, state, slotIdx }: WordSlotProps) {
    ================================================================ */
 
 export function Sentences() {
-  const bands = getSentenceBands();
+  const activeBookId = useWordBookStore((s) => s.activeBookId);
+  const bookMeta = activeBookId ? getBookMeta(activeBookId) : null;
+  const bands = getSentenceBands(activeBookId ?? undefined);
 
   const [selectedBand, setSelectedBand] = useState<SentenceBand | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<SentenceTopic | null>(null);
@@ -217,6 +220,7 @@ export function Sentences() {
   const trackerRef = useRef<ProficiencyTracker>(createTracker());
 
   const inputRef = useRef<HTMLInputElement>(null);
+const slotsContainerRef = useRef<HTMLDivElement>(null);
 
   const pushToast = useUiStore((s) => s.pushToast);
   const autoPlayAudio = useSettingsStore((s) => s.autoPlayAudio);
@@ -427,13 +431,31 @@ export function Sentences() {
     if (selectedTopic) resetPractice();
   }, [dialogueIdx, selectedTopic, resetPractice]);
 
-  // === 光标定位 ===
+  // === 光标定位 + 移动端键盘适配 ===
   useEffect(() => {
     const input = inputRef.current;
     if (!input || status !== 'typing') return;
     input.focus();
     const len = input.value.length;
     input.setSelectionRange(len, len);
+
+    // 移动端：键盘弹出后将词槽滚动到可见区域
+    const container = slotsContainerRef.current;
+    if (!container) return;
+
+    // 使用多次延迟滚动，确保键盘动画完成后才滚动到正确位置
+    const scrollIntoView = () => {
+      container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    // 不同移动端键盘弹出动画时间不同，分多次尝试
+    const timers = [100, 300, 500].map((delay) =>
+      window.setTimeout(scrollIntoView, delay),
+    );
+
+    return () => {
+      timers.forEach((t) => window.clearTimeout(t));
+    };
   }, [activeSlotIdx, status]);
 
   // === 全局 Enter 键 ===
@@ -637,7 +659,7 @@ export function Sentences() {
 
   if (selectedTopic && currentDialogue) {
     return (
-      <div className="max-w-2xl mx-auto space-y-5">
+      <div className="max-w-2xl mx-auto space-y-4 md:space-y-5">
         {/* 顶部导航 */}
         <div className="flex items-center justify-between">
           <button
@@ -686,7 +708,7 @@ export function Sentences() {
         <div
           key={dialogueIdx}
           className={clsx(
-            'card-container p-8 relative overflow-hidden animate-fadeInUp',
+            'card-container p-5 md:p-8 relative overflow-hidden animate-fadeInUp',
             status === 'success' && 'ring-2 ring-emerald-500/40',
             status === 'revealed' && 'ring-2 ring-amber-500/40',
           )}
@@ -700,13 +722,13 @@ export function Sentences() {
           )}
 
           {/* 中文句子 */}
-          <div className="text-center space-y-2 mb-6">
+          <div className="text-center space-y-2 mb-4 md:mb-6">
             <p className="text-xs text-slate-400 font-medium">🇨🇳 中文</p>
-            <p className="text-2xl font-medium">{currentDialogue.cn}</p>
+            <p className="text-xl md:text-2xl font-medium">{currentDialogue.cn}</p>
           </div>
 
           {/* 分隔线 */}
-          <div className="border-t border-slate-200 dark:border-slate-700 pt-6" />
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4 md:pt-6" />
 
           {status === 'success' ? (
             /* === 成功状态 === */
@@ -754,7 +776,7 @@ export function Sentences() {
                 </div>
               )}
 
-              <div className="flex justify-center gap-3 pt-2">
+              <div className="flex flex-wrap justify-center gap-2 md:gap-3 pt-2">
                 <Button variant="ghost" size="sm" onClick={() => handleSpeak(target)}>
                   🔊 再听一遍
                 </Button>
@@ -829,6 +851,7 @@ export function Sentences() {
             /* === 输入状态 === */
             <div className="space-y-4">
               <div
+                ref={slotsContainerRef}
                 className={clsx(
                   'word-slots-container',
                   shake && 'animate-shake',
@@ -842,6 +865,17 @@ export function Sentences() {
                   value={currentInput}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
+                  onFocus={() => {
+                    // 移动端：input 获得焦点时（键盘弹出），延迟滚动词槽到可见区域
+                    const container = slotsContainerRef.current;
+                    if (container) {
+                      [100, 300, 500].forEach((delay) => {
+                        setTimeout(() => {
+                          container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, delay);
+                      });
+                    }
+                  }}
                   className="word-input-hidden"
                   autoComplete="off"
                   autoCorrect="off"
@@ -917,15 +951,15 @@ export function Sentences() {
 
   if (selectedBand) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 animate-fadeInUp">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setSelectedBand(null)}
-            className="text-sm text-slate-500 hover:text-slate-700 transition"
-          >
-            ← 返回
-          </button>
-          <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer">
+    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6 animate-fadeInUp">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setSelectedBand(null)}
+          className="text-sm text-slate-500 hover:text-slate-700 transition"
+        >
+          ← 返回
+        </button>
+        <label className="flex items-center gap-2 text-xs md:text-sm text-slate-500 cursor-pointer">
             <input
               type="checkbox"
               checked={reviewAll}
@@ -936,7 +970,7 @@ export function Sentences() {
           </label>
         </div>
         <div className="text-center">
-          <h2 className="text-2xl font-bold">Band {selectedBand.band}</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Band {selectedBand.band}</h2>
           <p className="text-slate-500">{selectedBand.level}</p>
         </div>
         <div className="space-y-3">
@@ -956,7 +990,7 @@ export function Sentences() {
                   setDialogueIdx(0);
                   setStreak(0);
                 }}
-                className="w-full text-left card-container p-5 hover:ring-2 hover:ring-brand-500 transition group"
+                className="w-full text-left card-container p-4 md:p-5 hover:ring-2 hover:ring-brand-500 transition group active:scale-[0.98]"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium group-hover:text-brand-600 transition">
@@ -990,11 +1024,11 @@ export function Sentences() {
   // ================================================================
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fadeInUp">
+    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6 animate-fadeInUp">
       <div className="text-center">
-        <h2 className="text-2xl font-bold">句子练习</h2>
+        <h2 className="text-xl md:text-2xl font-bold">句子练习</h2>
         <p className="text-slate-500 mt-1">
-          雅思日常对话 · 中译英拼写练习
+          {bookMeta?.title ?? '句子练习'} · 中译英拼写练习
         </p>
       </div>
       <div className="space-y-3">
@@ -1014,7 +1048,7 @@ export function Sentences() {
             <button
               key={band.band}
               onClick={() => setSelectedBand(band)}
-              className="w-full text-left card-container p-5 hover:ring-2 hover:ring-brand-500 transition group"
+              className="w-full text-left card-container p-4 md:p-5 hover:ring-2 hover:ring-brand-500 transition group active:scale-[0.98]"
             >
               <div className="flex items-center justify-between mb-2">
                 <div>

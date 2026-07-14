@@ -26,7 +26,7 @@ export function WordDetail() {
   const meanings = word.meaning_cn.split(/\s+/).filter(Boolean);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate(-1)}
@@ -35,9 +35,9 @@ export function WordDetail() {
           ← 返回
         </button>
       </div>
-      <div className="card-container p-8 space-y-6">
-        <div className="flex items-center gap-4">
-          <h1 className="text-4xl font-bold">{word.word}</h1>
+      <div className="card-container p-5 md:p-8 space-y-4 md:space-y-6">
+        <div className="flex items-center gap-3 md:gap-4">
+          <h1 className="text-3xl md:text-4xl font-bold">{word.word}</h1>
           <PronunciationButton spelling={word.word} />
           {word.phonetic && <span className="text-sm text-slate-400">{word.phonetic}</span>}
         </div>

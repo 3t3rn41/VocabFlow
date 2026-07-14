@@ -31,6 +31,12 @@ export function Review() {
       setLoading(false);
       return;
     }
+    // 切换词书时重置所有状态
+    setIdx(0);
+    setFlipped(false);
+    setHistory([]);
+    setFinished(false);
+    setLoading(true);
     (async () => {
       try {
         const queue = await generateReviewQueue(activeBookId, 200, shuffleWords);
@@ -135,7 +141,7 @@ export function Review() {
   if (!items.length) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4">
-        <div className="card-container p-12 text-center space-y-4">
+        <div className="card-container p-6 md:p-12 text-center space-y-4">
           <p className="text-xl">🎉 今日学习已完成</p>
           <p className="text-sm text-slate-500">没有更多待复习的单词</p>
           <Button variant="primary" onClick={() => navigate('/today')}>
@@ -153,7 +159,7 @@ export function Review() {
   const current = items[idx];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
       <div className="flex items-center justify-between">
         <span className="text-sm text-slate-500">
           {idx + 1} / {items.length}
@@ -167,6 +173,7 @@ export function Review() {
         </button>
       </div>
       <FlashCard
+        key={current.wordId}
         item={current}
         flipped={flipped}
         onFlip={() => setFlipped(true)}

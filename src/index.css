@@ -7,13 +7,39 @@
     height: 100%;
     margin: 0;
   }
+  /* 移动端使用动态视口高度，键盘弹出时自动调整 */
+  @supports (height: 100dvh) {
+    html, body, #root {
+      height: 100dvh;
+    }
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
     font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
     @apply bg-slate-50 text-slate-900;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
   }
   .dark body {
     @apply bg-slate-900 text-slate-100;
   }
+  /* 移动端输入框字体不小于 16px，防止 iOS 自动缩放 */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  @media (min-width: 768px) {
+    input, select, textarea {
+      font-size: inherit;
+    }
+  }
+}
+
+/* iOS 安全区底部留白 */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 @layer components {
@@ -50,6 +76,13 @@
   /* 卡片容器 */
   .card-container {
     @apply bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700;
+  }
+
+  /* 移动端卡片减小圆角和阴影 */
+  @media (max-width: 767px) {
+    .card-container {
+      @apply rounded-xl shadow-md;
+    }
   }
 
   /* 输入框 */
@@ -170,17 +203,18 @@
 
 /* 隐藏输入框 — 覆盖整个词槽区域，透明但可聚焦 */
 .word-input-hidden {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  cursor: text;
-  z-index: 10;
-  font-size: 16px;                         /* 防止 iOS 自动缩放 */
+position: absolute;
+inset: 0;
+width: 100%;
+height: 100%;
+opacity: 0;
+border: none;
+outline: none;
+background: transparent;
+cursor: text;
+z-index: 10;
+font-size: 16px;                         /* 防止 iOS 自动缩放 */
+caret-color: transparent;                /* 隐藏光标，防止浏览器自动滚动到光标位置 */
 }
 
 /* 词槽显示区 — 在隐藏输入框下方 */
@@ -229,6 +263,27 @@
   line-height: 1.6;
   transition: border-color 0.25s ease, background-color 0.25s ease;
   vertical-align: bottom;
+}
+
+/* 移动端词槽缩小字号，防止长句子溢出 */
+@media (max-width: 640px) {
+  .word-slot {
+    font-size: 1.05rem;
+    min-width: 8ch;
+    padding: 2px 2px;
+  }
+  .word-punct {
+    font-size: 1.05rem;
+  }
+  .word-slots-display {
+    line-height: 2.0;
+  }
+  .word-slot-group {
+    margin: 0 4px 2px 0;
+  }
+  .word-slots-container {
+    padding: 14px 10px;
+  }
 }
 
 /* 空词槽 — 未开始输入 */

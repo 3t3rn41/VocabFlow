@@ -1,6 +1,7 @@
 /**
  * SRS 引擎（服务端版）
  * 使用 ts-fsrs 在服务端计算卡片状态
+ * 所有操作按用户隔离
  */
 
 import {
@@ -56,8 +57,8 @@ function toMySQLDateTime(iso: string | Date): string {
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-/** 获取所有卡片 */
-export async function loadAllCards(): Promise<Record<string, StoredCard>> {
+/** 获取用户的所有卡片 */
+export async function loadAllCards(userId: number): Promise<Record<string, StoredCard>> {
   const rows = await query<{
     word_id: string;
     book_id: string;
@@ -70,7 +71,7 @@ export async function loadAllCards(): Promise<Record<string, StoredCard>> {
     lapses: number;
     last_grade: number | null;
     updated_at: Date;
-  }>('SELECT * FROM srs_cards');
+  }>('SELECT word_id, book_id, stability, difficulty, elapsed_days, state, due, reps, lapses, last_grade, updated_at FROM srs_cards WHERE user_id = ?', [userId]);
 
   const result: Record<string, StoredCard> = {};
   for (const r of rows) {
@@ -91,8 +92,8 @@ export async function loadAllCards(): Promise<Record<string, StoredCard>> {
   return result;
 }
 
-/** 获取单张卡片 */
-export async function loadCard(wordId: string): Promise<StoredCard | null> {
+/** 获取用户的单张卡片 */
+export async function loadCard(userId: number, wordId: string): Promise<StoredCard | null> {
   const rows = await query<{
     word_id: string;
     book_id: string;
@@ -105,7 +106,7 @@ export async function loadCard(wordId: string): Promise<StoredCard | null> {
     lapses: number;
     last_grade: number | null;
     updated_at: Date;
-  }>('SELECT * FROM srs_cards WHERE word_id = ?', [wordId]);
+  }>('SELECT word_id, book_id, stability, difficulty, elapsed_days, state, due, reps, lapses, last_grade, updated_at FROM srs_cards WHERE user_id = ? AND word_id = ?', [userId, wordId]);
 
   if (!rows.length) return null;
   const r = rows[0];
@@ -162,11 +163,11 @@ function gradeToRating(grade: number): Rating {
   return (grade + 1) as Rating;
 }
 
-/** UPSERT 卡片到 MySQL */
-async function upsertCard(card: StoredCard): Promise<void> {
+/** UPSERT 卡片到 MySQL (含 user_id) */
+async function upsertCard(userId: number, card: StoredCard): Promise<void> {
   await execute(
-    `INSERT INTO srs_cards (word_id, book_id, stability, difficulty, elapsed_days, state, due, reps, lapses, last_grade, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO srs_cards (user_id, word_id, book_id, stability, difficulty, elapsed_days, state, due, reps, lapses, last_grade, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        book_id = VALUES(book_id),
        stability = VALUES(stability),
@@ -179,6 +180,7 @@ async function upsertCard(card: StoredCard): Promise<void> {
        last_grade = VALUES(last_grade),
        updated_at = VALUES(updated_at)`,
     [
+      userId,
       card.wordId,
       card.bookId,
       card.stability,
@@ -196,11 +198,12 @@ async function upsertCard(card: StoredCard): Promise<void> {
 
 /** 评分并持久化 */
 export async function reviewAndPersist(
+  userId: number,
   wordId: string,
   bookId: string,
   grade: number,
 ): Promise<StoredCard> {
-  const existing = await loadCard(wordId);
+  const existing = await loadCard(userId, wordId);
   const card: Card = existing ? fromStoredCard(existing) : createEmptyCard(new Date());
   const f = getFsrs();
   const preview = f.repeat(card, new Date());
@@ -209,26 +212,26 @@ export async function reviewAndPersist(
   const nextCard = log.card;
 
   const stored = toStoredCard(wordId, bookId, nextCard, grade);
-  await upsertCard(stored);
+  await upsertCard(userId, stored);
 
   // 记录日志
   await execute(
-    `INSERT INTO review_logs (word_id, book_id, reviewed_at, grade) VALUES (?, ?, ?, ?)`,
-    [wordId, bookId, toMySQLDateTime(new Date()), grade],
+    `INSERT INTO review_logs (user_id, word_id, book_id, reviewed_at, grade) VALUES (?, ?, ?, ?, ?)`,
+    [userId, wordId, bookId, toMySQLDateTime(new Date()), grade],
   );
 
   return stored;
 }
 
-/** 获取所有复习日志 */
-export async function loadReviewLogs(): Promise<ReviewLog[]> {
+/** 获取用户的所有复习日志 */
+export async function loadReviewLogs(userId: number): Promise<ReviewLog[]> {
   const rows = await query<{
     id: number;
     word_id: string;
     book_id: string;
     reviewed_at: Date;
     grade: number;
-  }>('SELECT * FROM review_logs ORDER BY reviewed_at ASC');
+  }>('SELECT id, word_id, book_id, reviewed_at, grade FROM review_logs WHERE user_id = ? ORDER BY reviewed_at ASC', [userId]);
 
   return rows.map((r) => ({
     id: r.id,
@@ -240,45 +243,45 @@ export async function loadReviewLogs(): Promise<ReviewLog[]> {
 }
 
 /** 撤销复习 */
-export async function undoReview(wordId: string): Promise<void> {
-  const card = await loadCard(wordId);
+export async function undoReview(userId: number, wordId: string): Promise<void> {
+  const card = await loadCard(userId, wordId);
   if (!card) return;
 
   if (card.reps > 0) card.reps -= 1;
   card.due = new Date().toISOString();
   card.updatedAt = new Date().toISOString();
-  await upsertCard(card);
+  await upsertCard(userId, card);
 
   // 删除最后一条该词的日志
   await execute(
     `DELETE FROM review_logs WHERE id = (
        SELECT id FROM (
-         SELECT id FROM review_logs WHERE word_id = ? ORDER BY reviewed_at DESC LIMIT 1
+         SELECT id FROM review_logs WHERE user_id = ? AND word_id = ? ORDER BY reviewed_at DESC LIMIT 1
        ) AS t
      )`,
-    [wordId],
+    [userId, wordId],
   );
 }
 
-/** 清除所有 SRS 数据 */
-export async function clearAllSrs(): Promise<void> {
-  await execute('DELETE FROM srs_cards', []);
-  await execute('DELETE FROM review_logs', []);
+/** 清除用户的所有 SRS 数据 */
+export async function clearAllSrs(userId: number): Promise<void> {
+  await execute('DELETE FROM srs_cards WHERE user_id = ?', [userId]);
+  await execute('DELETE FROM review_logs WHERE user_id = ?', [userId]);
 }
 
-/** 获取词书统计 */
-export async function getBookStats(bookId: string): Promise<{
+/** 获取词书统计 (按用户) */
+export async function getBookStats(userId: number, bookId: string): Promise<{
   total: number;
   learned: number;
   due: number;
 }> {
   const learnedRows = await query<{ cnt: number }>(
-    'SELECT COUNT(*) AS cnt FROM srs_cards WHERE book_id = ?',
-    [bookId],
+    'SELECT COUNT(*) AS cnt FROM srs_cards WHERE user_id = ? AND book_id = ?',
+    [userId, bookId],
   );
   const dueRows = await query<{ cnt: number }>(
-    'SELECT COUNT(*) AS cnt FROM srs_cards WHERE book_id = ? AND due <= NOW()',
-    [bookId],
+    'SELECT COUNT(*) AS cnt FROM srs_cards WHERE user_id = ? AND book_id = ? AND due <= UTC_TIMESTAMP()',
+    [userId, bookId],
   );
 
   // total 需要前端提供（因为词库数据来自 JSON）
@@ -289,19 +292,20 @@ export async function getBookStats(bookId: string): Promise<{
   };
 }
 
-/** 获取今日进度 */
+/** 获取今日进度 (按用户) */
 export async function getTodayProgress(
+  userId: number,
   bookId: string,
   newLimit: number = 20,
 ): Promise<{ dueCount: number; newCount: number; finishedToday: number }> {
   const dueRows = await query<{ cnt: number }>(
-    'SELECT COUNT(*) AS cnt FROM srs_cards WHERE book_id = ? AND due <= NOW()',
-    [bookId],
+    'SELECT COUNT(*) AS cnt FROM srs_cards WHERE user_id = ? AND book_id = ? AND due <= UTC_TIMESTAMP()',
+    [userId, bookId],
   );
   const todayRows = await query<{ cnt: number }>(
     `SELECT COUNT(*) AS cnt FROM review_logs
-     WHERE book_id = ? AND DATE(reviewed_at) = CURDATE()`,
-    [bookId],
+     WHERE user_id = ? AND book_id = ? AND DATE(reviewed_at) = UTC_DATE()`,
+    [userId, bookId],
   );
 
   const dueCount = Math.min(dueRows[0]?.cnt ?? 0, 200);

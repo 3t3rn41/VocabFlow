@@ -7,10 +7,25 @@ import type { BookKind } from '@/types';
 
 /* 书籍封面配色方案 */
 const BOOK_COVERS: Record<string, { gradient: string; icon: string; accent: string }> = {
+  zhongkao: {
+    gradient: 'from-amber-400 via-orange-500 to-red-500',
+    icon: '📘',
+    accent: 'text-orange-500',
+  },
   gaokao: {
     gradient: 'from-rose-400 via-pink-500 to-purple-500',
     icon: '🎓',
     accent: 'text-pink-500',
+  },
+  cet4: {
+    gradient: 'from-green-400 via-emerald-500 to-teal-500',
+    icon: '📗',
+    accent: 'text-emerald-500',
+  },
+  cet6: {
+    gradient: 'from-violet-400 via-purple-500 to-indigo-500',
+    icon: '📕',
+    accent: 'text-purple-500',
   },
   ielts: {
     gradient: 'from-blue-400 via-indigo-500 to-violet-500',
@@ -21,6 +36,11 @@ const BOOK_COVERS: Record<string, { gradient: string; icon: string; accent: stri
     gradient: 'from-emerald-400 via-teal-500 to-cyan-500',
     icon: '💬',
     accent: 'text-emerald-500',
+  },
+  'language-sense': {
+    gradient: 'from-fuchsia-400 via-pink-500 to-rose-500',
+    icon: '✨',
+    accent: 'text-fuchsia-500',
   },
 };
 
@@ -47,24 +67,24 @@ export function WordBookSelection() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-slate-50 via-brand-50/30 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+    <div className="min-h-screen flex items-center justify-center p-4 md:p-6 bg-gradient-to-br from-slate-50 via-brand-50/30 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       <div className="w-full max-w-3xl">
         {/* 标题区 */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-6 md:mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-300 text-xs font-medium mb-4">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
             选择词书
           </div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-brand-600 to-indigo-600 dark:from-brand-400 dark:to-indigo-400 bg-clip-text text-transparent mb-3">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-brand-600 to-indigo-600 dark:from-brand-400 dark:to-indigo-400 bg-clip-text text-transparent mb-3">
             VocabFlow
           </h1>
-          <p className="text-slate-500 dark:text-slate-400">
+          <p className="text-sm md:text-base text-slate-500 dark:text-slate-400">
             选择一本词书，开始你的学习之旅
           </p>
         </div>
 
         {/* 词书卡片 */}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {WORD_BOOKS.map((book) => {
             const cover = BOOK_COVERS[book.id] ?? BOOK_COVERS.ielts;
             const isActive = book.id === activeBookId;
@@ -82,7 +102,7 @@ export function WordBookSelection() {
                 )}
               >
                 {/* 封面渐变区 */}
-                <div className={clsx('relative h-28 bg-gradient-to-br', cover.gradient)}>
+                <div className={clsx('relative h-24 md:h-28 bg-gradient-to-br', cover.gradient)}>
                   <div className="absolute inset-0 opacity-20" style={{
                     backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 30%, white 1px, transparent 1px)',
                     backgroundSize: '24px 24px',
@@ -98,13 +118,13 @@ export function WordBookSelection() {
                       </span>
                     )}
                   </div>
-                  <div className="absolute bottom-3 left-4 text-4xl drop-shadow-lg">
+                  <div className="absolute bottom-3 left-4 text-3xl md:text-4xl drop-shadow-lg">
                     {cover.icon}
                   </div>
                 </div>
 
                 {/* 内容区 */}
-                <div className="p-5 bg-white dark:bg-slate-800 space-y-3">
+                <div className="p-4 md:p-5 bg-white dark:bg-slate-800 space-y-2 md:space-y-3">
                   <div>
                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition">
                       {book.title}

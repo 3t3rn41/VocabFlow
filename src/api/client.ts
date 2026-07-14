@@ -3,19 +3,69 @@
  *
  * 所有数据持久化操作通过 HTTP 请求发送到 Express + MySQL 后端。
  * Vite dev server 通过 /api 代理转发到 http://localhost:3001。
+ * 所有请求自动携带 JWT Token（如已登录）。
  */
 
 import type { StoredCard, ReviewLog } from '@/types';
 
 const API_BASE = '/api';
+const TOKEN_KEY = 'vocabflow_token';
+
+/* ------------------------------------------------------------------ */
+/* Token 管理                                                          */
+/* ------------------------------------------------------------------ */
+
+/** 获取本地存储的 JWT Token */
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+/** 保存 JWT Token */
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+/** 清除 JWT Token */
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
 
 /* ------------------------------------------------------------------ */
 /* 通用请求封装                                                         */
 /* ------------------------------------------------------------------ */
 
+/** 401 回调 — 当 token 过期或无效时触发 */
+let _onUnauthorized: (() => void) | null = null;
+
+/** 注册 401 回调 (由 auth store 设置) */
+export function onUnauthorized(cb: () => void): void {
+  _onUnauthorized = cb;
+}
+
+/** 构建请求头，自动附加 Authorization */
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = { ...extra };
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+/** 统一错误处理：401 时清除 token 并触发回调 */
+function handleUnauthorized(status: number): void {
+  if (status === 401) {
+    clearToken();
+    _onUnauthorized?.();
+  }
+}
+
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+  });
   if (!res.ok) {
+    handleUnauthorized(res.status);
     const body = await res.text().catch(() => '');
     throw new Error(`GET ${path} failed (${res.status}): ${body.slice(0, 200)}`);
   }
@@ -25,10 +75,11 @@ async function apiGet<T>(path: string): Promise<T> {
 async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    handleUnauthorized(res.status);
     const text = await res.text().catch(() => '');
     throw new Error(`POST ${path} failed (${res.status}): ${text.slice(0, 200)}`);
   }
@@ -38,10 +89,11 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 async function apiPut<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    handleUnauthorized(res.status);
     const text = await res.text().catch(() => '');
     throw new Error(`PUT ${path} failed (${res.status}): ${text.slice(0, 200)}`);
   }
@@ -51,15 +103,43 @@ async function apiPut<T>(path: string, body?: unknown): Promise<T> {
 async function apiDelete<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'DELETE',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: authHeaders(body ? { 'Content-Type': 'application/json' } : undefined),
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
+    handleUnauthorized(res.status);
     const text = await res.text().catch(() => '');
     throw new Error(`DELETE ${path} failed (${res.status}): ${text.slice(0, 200)}`);
   }
   return res.json() as Promise<T>;
 }
+
+/* ------------------------------------------------------------------ */
+/* 认证 API                                                            */
+/* ------------------------------------------------------------------ */
+
+export interface AuthUser {
+  id: number;
+  username: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
+
+export const authApi = {
+  /** 注册 */
+  register: (username: string, password: string) =>
+    apiPost<AuthResponse>('/auth/register', { username, password }),
+
+  /** 登录 */
+  login: (username: string, password: string) =>
+    apiPost<AuthResponse>('/auth/login', { username, password }),
+
+  /** 获取当前用户信息 */
+  me: () => apiGet<{ user: AuthUser }>('/auth/me'),
+};
 
 /* ------------------------------------------------------------------ */
 /* SRS API                                                             */
@@ -224,7 +304,6 @@ export interface RemoteSettings {
   srsRetention?: number;
   keyboardLayout?: string;
   shuffleWords?: boolean;
-  ttsApiKey?: string;
 }
 
 export const userApi = {

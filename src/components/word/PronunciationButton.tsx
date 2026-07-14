@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { speakWithBrowserTts } from '@/api/tts';
+import { speakWithBrowserTts, isAudioUnlocked, onAudioUnlock } from '@/api/tts';
 import { useUiStore } from '@/stores/ui';
 import { Spinner } from '@/components/ui/Spinner';
 
@@ -10,8 +10,13 @@ interface PronunciationButtonProps {
 }
 
 /**
- * 朗读按钮 — 仅使用浏览器内置 SpeechSynthesis API。
- * 无需网络、无需 API Key。
+ * 朗读按钮 — 优先使用本地缓存音频，回退到浏览器 TTS 和 mimo TTS。
+ *
+ * 移动端浏览器要求音频播放在用户手势上下文中触发。
+ * 若 autoPlay 时音频尚未解锁，会等待首次用户交互后再播放。
+ *
+ * tts.ts 内部有全局播放取消机制：每次新的 speakWithBrowserTts 调用
+ * 会自动取消之前正在进行的播放，确保不会出现多个声音叠加。
  */
 export function PronunciationButton({ spelling, autoPlay = false }: PronunciationButtonProps) {
   const [playing, setPlaying] = useState(false);
@@ -19,27 +24,51 @@ export function PronunciationButton({ spelling, autoPlay = false }: Pronunciatio
 
   useEffect(() => {
     if (!autoPlay) return;
-    void play(spelling, { silent: true });
+
+    // 用闭包捕获当前的 spelling，确保播放的是正确的单词
+    const targetSpelling = spelling;
+    let cancelled = false;
+
+    const doPlay = async () => {
+      if (cancelled) return;
+      setPlaying(true);
+      try {
+        await speakWithBrowserTts(targetSpelling, 'en-US');
+      } catch {
+        // 静默失败
+      } finally {
+        if (!cancelled) setPlaying(false);
+      }
+    };
+
+    if (isAudioUnlocked()) {
+      void doPlay();
+    } else {
+      const cleanup = onAudioUnlock(() => {
+        if (!cancelled) void doPlay();
+      });
+      return () => {
+        cancelled = true;
+        cleanup();
+      };
+    }
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spelling, autoPlay]);
 
-  async function play(currentSpelling: string, opts: { silent?: boolean } = {}) {
-    if (playing) return;
+  async function handlePlay(e?: React.MouseEvent) {
+    e?.stopPropagation();
     setPlaying(true);
     try {
-      await speakWithBrowserTts(currentSpelling, 'en-US');
+      await speakWithBrowserTts(spelling, 'en-US');
     } catch (e) {
-      if (!opts.silent) {
-        pushToast(`发音失败: ${(e as Error).message}`, 'error');
-      }
+      pushToast(`发音失败: ${(e as Error).message}`, 'error');
     } finally {
       setPlaying(false);
     }
-  }
-
-  async function handlePlay(e?: React.MouseEvent) {
-    e?.stopPropagation();
-    await play(spelling);
   }
 
   return (

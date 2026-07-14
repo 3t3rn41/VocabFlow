@@ -1,7 +1,7 @@
 /**
  * VocabFlow 后端服务
  *
- * Express + MySQL，提供 SRS、句子进度、用户设置等 API。
+ * Express + MySQL，提供用户认证、SRS、句子进度、用户设置等 API。
  */
 
 import express from 'express';
@@ -9,6 +9,8 @@ import cors from 'cors';
 import { srsRouter } from './routes/srs.js';
 import { sentenceRouter } from './routes/sentences.js';
 import { userRouter } from './routes/user.js';
+import { ttsRouter } from './routes/tts.js';
+import { authRouter } from './routes/auth.js';
 import { pool } from './db.js';
 
 const app = express();
@@ -28,9 +30,11 @@ app.get('/api/health', async (_req, res) => {
 });
 
 /* 路由挂载 */
-app.use('/api/srs', srsRouter);
-app.use('/api/sentences', sentenceRouter);
-app.use('/api/user', userRouter);
+app.use('/api/auth', authRouter);          // 认证路由 (注册/登录/me)
+app.use('/api/srs', srsRouter);            // SRS 路由 (需认证)
+app.use('/api/sentences', sentenceRouter); // 句子练习路由 (需认证)
+app.use('/api/user', userRouter);          // 用户设置路由 (需认证)
+app.use('/api/tts', ttsRouter);            // TTS 代理 (无需认证)
 
 app.listen(PORT, () => {
   console.log(`[server] VocabFlow API running at http://localhost:${PORT}`);

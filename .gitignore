@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Server dependencies
+server/node_modules
+
+# Generated TTS audio cache (regenerated via scripts/generate_tts_cache.py)
+public/audio
+
+# Python
+__pycache__
+*.pyc
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

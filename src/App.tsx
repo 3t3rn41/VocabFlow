@@ -2,8 +2,10 @@ import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useSettingsStore } from '@/stores/settings';
 import { useWordBookStore } from '@/stores/wordBook';
+import { useAuthStore } from '@/stores/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WordBookSelection } from '@/pages/WordBookSelection';
+import { Login } from '@/pages/Login';
 import { Today } from '@/pages/Today';
 import { Review } from '@/pages/Review';
 import { Words } from '@/pages/Words';
@@ -21,11 +23,20 @@ export default function App() {
   const initSettings = useSettingsStore((s) => s.init);
   const initBook = useWordBookStore((s) => s.init);
 
-  // 启动时从后端加载设置和活跃词书
+  const { isAuthenticated, loading: authLoading, user, init: initAuth } = useAuthStore();
+
+  // 启动时检查登录状态
   useEffect(() => {
-    initSettings();
-    initBook();
-  }, [initSettings, initBook]);
+    initAuth();
+  }, [initAuth]);
+
+  // 已登录后才加载设置和活跃词书
+  useEffect(() => {
+    if (isAuthenticated) {
+      initSettings();
+      initBook();
+    }
+  }, [isAuthenticated, initSettings, initBook]);
 
   // 应用主题: theme 变化或系统主题变化时同步 <html class="dark">
   useEffect(() => {
@@ -45,12 +56,32 @@ export default function App() {
     }
   }, [theme]);
 
+  // 等待认证检查完成
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center gap-3 px-4">
+        <Spinner size="lg" />
+        <span className="text-slate-500 text-sm md:text-base">加载中...</span>
+      </div>
+    );
+  }
+
+  // 未登录显示登录页
+  if (!isAuthenticated || !user) {
+    return (
+      <>
+        <Login />
+        <ToastContainer />
+      </>
+    );
+  }
+
   // 等待后端数据加载完成
   if (settingsLoading || bookLoading) {
     return (
-      <div className="h-screen flex items-center justify-center gap-3">
+      <div className="h-screen flex items-center justify-center gap-3 px-4">
         <Spinner size="lg" />
-        <span className="text-slate-500">加载中...</span>
+        <span className="text-slate-500 text-sm md:text-base">加载中...</span>
       </div>
     );
   }

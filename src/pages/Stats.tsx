@@ -99,32 +99,32 @@ export function Stats() {
   }, [activeBookId, isSentenceBook]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <h2 className="text-2xl font-bold">学习统计</h2>
+    <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
+      <h2 className="text-xl md:text-2xl font-bold">学习统计</h2>
 
       {/* 统计概览 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="card-container p-4 text-center">
-          <p className="text-3xl font-bold text-brand-600">{totalLearned}</p>
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
+        <div className="card-container p-3 md:p-4 text-center">
+          <p className="text-2xl md:text-3xl font-bold text-brand-600">{totalLearned}</p>
           <p className="text-xs text-slate-500 mt-1">
             {isSentenceBook ? '已学句子' : '已学单词'}
           </p>
         </div>
-        <div className="card-container p-4 text-center">
-          <p className="text-3xl font-bold text-brand-600">{reviewsTotal}</p>
+        <div className="card-container p-3 md:p-4 text-center">
+          <p className="text-2xl md:text-3xl font-bold text-brand-600">{reviewsTotal}</p>
           <p className="text-xs text-slate-500 mt-1">
-            {isSentenceBook ? '总练习次数' : '总复习次数'}
+            {isSentenceBook ? '总练习' : '总复习'}
           </p>
         </div>
-        <div className="card-container p-4 text-center">
-          <p className="text-3xl font-bold text-brand-600">{streakDays}</p>
+        <div className="card-container p-3 md:p-4 text-center">
+          <p className="text-2xl md:text-3xl font-bold text-brand-600">{streakDays}</p>
           <p className="text-xs text-slate-500 mt-1">坚持天数</p>
         </div>
       </div>
 
       {/* 句子模式：平均熟练度 */}
       {isSentenceBook && sentenceStats && (
-        <div className="card-container p-6">
+        <div className="card-container p-4 md:p-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-slate-500">平均熟练度</h3>
             <span className="text-sm font-mono">
@@ -146,7 +146,7 @@ export function Stats() {
 
       {/* 词书进度 (仅单词模式) */}
       {!isSentenceBook && totalWords > 0 && (
-        <div className="card-container p-6">
+        <div className="card-container p-4 md:p-6">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-medium text-slate-500">词书进度</h3>
             <span className="text-sm font-mono">
@@ -166,14 +166,14 @@ export function Stats() {
       )}
 
       {/* 近30天练习/复习量 */}
-      <div className="card-container p-6">
+      <div className="card-container p-4 md:p-6">
         <h3 className="text-sm font-medium text-slate-500 mb-4">
           近 30 天{isSentenceBook ? '练习量' : '复习量'}
         </h3>
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={200}>
           <BarChart data={dailyData}>
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={28} />
             <Tooltip />
             <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} />
           </BarChart>
@@ -182,9 +182,9 @@ export function Stats() {
 
       {/* 句子模式：熟练度趋势 */}
       {isSentenceBook && proficiencyHistory && proficiencyHistory.daily.length > 0 && (
-        <div className="card-container p-6">
+        <div className="card-container p-4 md:p-6">
           <h3 className="text-sm font-medium text-slate-500 mb-4">熟练度趋势 (近30天)</h3>
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={200}>
             <LineChart
               data={proficiencyHistory.daily.map((d) => ({
                 date: d.date.slice(5),
@@ -211,7 +211,7 @@ export function Stats() {
 
       {/* 句子模式：最近练习记录 */}
       {isSentenceBook && proficiencyHistory && proficiencyHistory.recent.length > 0 && (
-        <div className="card-container p-6">
+        <div className="card-container p-4 md:p-6">
           <h3 className="text-sm font-medium text-slate-500 mb-4">最近练习记录</h3>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {proficiencyHistory.recent.slice(0, 20).map((r) => (

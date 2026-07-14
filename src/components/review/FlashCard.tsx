@@ -22,13 +22,13 @@ export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
     <div className="flex justify-center">
       <div
         onClick={onFlip}
-        className={`flash-card w-full min-h-[320px] cursor-pointer select-none relative ${flipped ? 'flipped' : ''}`}
+        className={`flash-card w-full min-h-[280px] md:min-h-[320px] cursor-pointer select-none relative ${flipped ? 'flipped' : ''}`}
         style={{ perspective: '1200px' }}
       >
         {/* 正面 */}
-        <div className="flash-card-face absolute inset-0 card-container p-8 flex flex-col items-center justify-center gap-4">
+        <div className="flash-card-face absolute inset-0 card-container p-5 md:p-8 flex flex-col items-center justify-center gap-3 md:gap-4">
           <PronunciationButton spelling={item.word} autoPlay={autoPlayAudio} />
-          <h2 className="text-5xl font-bold tracking-wide">{item.word}</h2>
+          <h2 className="text-4xl md:text-5xl font-bold tracking-wide">{item.word}</h2>
           {item.isNew && (
             <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
               新词
@@ -38,9 +38,9 @@ export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
         </div>
 
         {/* 反面 */}
-        <div className="flash-card-face flash-card-back absolute inset-0 card-container p-8 flex flex-col items-center justify-start gap-3 overflow-auto">
+        <div className="flash-card-face flash-card-back absolute inset-0 card-container p-5 md:p-8 flex flex-col items-center justify-start gap-2 md:gap-3 overflow-auto">
           <div className="w-full text-center">
-            <p className="text-3xl font-bold mb-1">{item.word}</p>
+            <p className="text-2xl md:text-3xl font-bold mb-1">{item.word}</p>
             {item.phonetic && (
               <p className="text-sm text-slate-500 mb-1">{item.phonetic}</p>
             )}
