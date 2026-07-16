@@ -4,10 +4,12 @@ import { useWordBookStore } from '@/stores/wordBook';
 import { getBookMeta } from '@/data/wordbooks';
 import { getBookStats, loadReviewLogs, loadAllCards } from '@/srs/engine';
 import { sentenceApi, type SentenceStats, type SentenceProficiencyHistory } from '@/api/client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { daysAgoBJ, toBJDate } from '@/utils/date';
 
 export function Stats() {
   const activeBookId = useWordBookStore((s) => s.activeBookId);
+  const isMobile = useIsMobile();
   const [dailyData, setDailyData] = useState<{ date: string; count: number }[]>([]);
   const [totalLearned, setTotalLearned] = useState(0);
   const [totalWords, setTotalWords] = useState(0);
@@ -224,7 +226,7 @@ export function Stats() {
                     B{r.band}:{r.topicIdx}:{r.dialogueIdx}
                   </span>
                   <div className="flex gap-2 text-xs text-slate-400">
-                    {r.tabCount > 0 && <span>Tab: {r.tabCount}</span>}
+                    {r.tabCount > 0 && <span>{isMobile ? '提示' : 'Tab'}: {r.tabCount}</span>}
                     {r.typoCount > 0 && <span>错: {r.typoCount}</span>}
                   </div>
                 </div>

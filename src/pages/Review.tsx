@@ -10,6 +10,7 @@ import type { ReviewItem } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { generateReviewQueue, reviewAndPersist, undoReview } from '@/srs/engine';
+import { clsx } from 'clsx';
 
 export function Review() {
   const activeBookId = useWordBookStore((s) => s.activeBookId);
@@ -159,8 +160,9 @@ export function Review() {
   const current = items[idx];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-2xl mx-auto h-full flex flex-col">
+      {/* 进度条 */}
+      <div className="flex items-center justify-between shrink-0">
         <span className="text-sm text-slate-500">
           {idx + 1} / {items.length}
         </span>
@@ -172,13 +174,36 @@ export function Review() {
           ↩ 撤销
         </button>
       </div>
-      <FlashCard
-        key={current.wordId}
-        item={current}
-        flipped={flipped}
-        onFlip={() => setFlipped(true)}
-      />
-      <GradeButtons layout={keyboardLayout} onGrade={handleGrade} disabled={grading} />
+
+      {/* 卡片区域 — flex-1 填满剩余空间 */}
+      <div className="flex-1 flex items-center justify-center min-h-0 py-4">
+        <FlashCard
+          key={current.wordId}
+          item={current}
+          flipped={flipped}
+          onFlip={() => setFlipped(true)}
+        />
+      </div>
+
+      {/* 评分按钮 — 翻转后从底部冒出 */}
+      <div
+        className="shrink-0"
+        style={{
+          display: 'grid',
+          gridTemplateRows: flipped ? '1fr' : '0fr',
+          transition: 'grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        <div className="overflow-hidden">
+          <div className={clsx(
+            flipped
+              ? 'animate-gradeEmerge'
+              : 'opacity-0 translate-y-6 pointer-events-none transition-all duration-200 ease-out',
+          )}>
+            <GradeButtons layout={keyboardLayout} onGrade={handleGrade} disabled={grading} />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

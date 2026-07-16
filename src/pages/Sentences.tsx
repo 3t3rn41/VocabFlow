@@ -9,6 +9,10 @@ import {
 import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
 import { useWordBookStore } from '@/stores/wordBook';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { scorePronunciation, type PronunciationResult } from '@/utils/pronunciationScore';
+import { PronunciationResultPanel } from '@/components/review/PronunciationResultPanel';
 import { Button } from '@/components/ui/Button';
 import { clsx } from 'clsx';
 import type { SentenceBand, SentenceTopic } from '@/types';
@@ -216,6 +220,11 @@ export function Sentences() {
   const [reviewAll, setReviewAll] = useState(false); // 是否复习全部（包括熟知）
   const [lastProficiency, setLastProficiency] = useState<number | null>(null);
 
+  // 语音识别状态
+  const [pronunciationResult, setPronunciationResult] = useState<PronunciationResult | null>(null);
+  const [showPronunciationPanel, setShowPronunciationPanel] = useState(false);
+  const [pronunciationAccepted, setPronunciationAccepted] = useState(false);
+
   // 熟练度追踪
   const trackerRef = useRef<ProficiencyTracker>(createTracker());
 
@@ -224,6 +233,7 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
 
   const pushToast = useUiStore((s) => s.pushToast);
   const autoPlayAudio = useSettingsStore((s) => s.autoPlayAudio);
+  const isMobile = useIsMobile();
 
   // === 初始化：加载进度 + mastery + 恢复位置 ===
   useEffect(() => {
@@ -416,6 +426,72 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
     }
   }, [wordSlots, triggerSuccess]);
 
+  // === 语音识别 ===
+  const {
+    isListening,
+    transcript,
+    interimTranscript,
+    error: srError,
+    isSupported: srSupported,
+    confidence: srConfidence,
+    provider: srProvider,
+    statusMessage: srStatusMessage,
+    isDetecting: srDetecting,
+    start: srStart,
+    stop: srStop,
+    reset: srReset,
+  } = useSpeechRecognition({ lang: 'en-US' });
+
+  // 识别结果变化时，计算评分
+  useEffect(() => {
+    if (!isListening && transcript) {
+      const result = scorePronunciation(target, transcript, srConfidence);
+      setPronunciationResult(result);
+      setShowPronunciationPanel(true);
+    }
+  }, [isListening, transcript, target, srConfidence]);
+
+  // 处理语音识别错误
+  useEffect(() => {
+    if (srError) {
+      pushToast(srError, 'error');
+    }
+  }, [srError, pushToast]);
+
+  // 开始/停止语音识别
+  const handleMicToggle = useCallback(() => {
+    if (srDetecting) {
+      pushToast('正在检测语音识别支持，请稍候...', 'info');
+      return;
+    }
+    if (!srSupported) {
+      pushToast(srStatusMessage, 'error');
+      return;
+    }
+    if (isListening) {
+      srStop();
+    } else {
+      srReset();
+      setPronunciationResult(null);
+      setShowPronunciationPanel(false);
+      setPronunciationAccepted(false);
+      srStart();
+    }
+  }, [srDetecting, srSupported, srStatusMessage, isListening, srStop, srStart, srReset, pushToast]);
+
+  // 确认发音结果（如果通过则触发成功）
+  const handleAcceptPronunciation = useCallback(() => {
+    setPronunciationAccepted(true);
+    if (pronunciationResult?.passed && pronunciationResult.score >= 85) {
+      // 高分直接标记成功
+      const revealed: Record<number, string> = {};
+      wordSlots.forEach((ws, i) => { revealed[i] = ws.word; });
+      setTypedWords(revealed);
+      setActiveSlotIdx(wordSlots.length - 1);
+      triggerSuccess();
+    }
+  }, [pronunciationResult, wordSlots, triggerSuccess]);
+
   // === 重置 ===
   const resetPractice = useCallback(() => {
     setTypedWords({});
@@ -423,9 +499,13 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
     setStatus('typing');
     setShake(false);
     setLastProficiency(null);
+    setPronunciationResult(null);
+    setShowPronunciationPanel(false);
+    setPronunciationAccepted(false);
+    srReset();
     trackerRef.current = createTracker();
     setTimeout(() => inputRef.current?.focus(), 80);
-  }, []);
+  }, [srReset]);
 
   useEffect(() => {
     if (selectedTopic) resetPractice();
@@ -794,9 +874,11 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
                   {isLastSentence ? '完成话题 🎉' : '下一句 →'}
                 </Button>
               </div>
-              <p className="text-center text-xs text-slate-400 mt-2">
-                按 Enter 继续
-              </p>
+              {!isMobile && (
+                <p className="text-center text-xs text-slate-400 mt-2">
+                  按 Enter 继续
+                </p>
+              )}
             </div>
           ) : status === 'revealed' ? (
             /* === 显示答案状态 === */
@@ -843,9 +925,11 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
                   {isLastSentence ? '完成话题 🎉' : '下一句 →'}
                 </Button>
               </div>
-              <p className="text-center text-xs text-slate-400 mt-2">
-                按 Enter 继续
-              </p>
+              {!isMobile && (
+                <p className="text-center text-xs text-slate-400 mt-2">
+                  按 Enter 继续
+                </p>
+              )}
             </div>
           ) : (
             /* === 输入状态 === */
@@ -903,41 +987,113 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
                 </div>
               </div>
 
-              {!hasInput && (
+              {!hasInput && !isListening && !showPronunciationPanel && (
                 <p className="text-sm text-slate-300 dark:text-slate-600 italic text-center">
-                  ✏️ 点击开始输入，Tab 提示一个字母
+                  ✏️ 点击开始输入{isMobile ? '' : '，Tab 提示一个字母'}
                 </p>
               )}
 
-              <div className="flex items-center justify-center gap-3">
-                <button
-                  onClick={handleHint}
-                  className="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40 transition active:scale-95"
-                  title="Tab 键快捷触发"
-                >
-                  💡 提示 (Tab)
-                </button>
-                <button
-                  onClick={handleReveal}
-                  className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition active:scale-95"
-                >
-                  👁 答案
-                </button>
-                <button
-                  onClick={() => handleSpeak(target)}
-                  className="px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 text-sm hover:bg-brand-100 dark:hover:bg-brand-900/40 transition active:scale-95"
-                >
-                  🔊 朗读
-                </button>
-                {dialogueIdx > 0 && (
+              {/* 语音识别中 — 实时反馈 */}
+              {isListening && (
+                <div className="flex flex-col items-center gap-2 py-2">
+                  <div className="flex items-center gap-2 text-red-500">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                    </span>
+                    <span className="text-sm font-medium">正在聆听...</span>
+                  </div>
+                  {interimTranscript && (
+                    <p className="text-sm text-slate-500 text-center italic">
+                      "{interimTranscript}"
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-400">
+                    点击麦克风停止识别
+                    {srProvider === 'server-asr' && ' · 停止后开始识别'}
+                  </p>
+                </div>
+              )}
+
+              {/* 发音评分结果 */}
+              {showPronunciationPanel && pronunciationResult && (
+                <PronunciationResultPanel
+                  result={pronunciationResult}
+                  onRetry={() => {
+                    setPronunciationResult(null);
+                    setShowPronunciationPanel(false);
+                    setPronunciationAccepted(false);
+                    srReset();
+                    srStart();
+                  }}
+                  onAccept={handleAcceptPronunciation}
+                  accepted={pronunciationAccepted}
+                />
+              )}
+
+              {/* 操作按钮 */}
+              {!isListening && !showPronunciationPanel && (
+                <div className="flex items-center justify-center gap-3 flex-wrap">
                   <button
-                    onClick={handlePrev}
+                    onClick={handleHint}
+                    className="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40 transition active:scale-95"
+                    title="提示一个字母"
+                  >
+                    💡 提示
+                  </button>
+                  <button
+                    onClick={handleReveal}
                     className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition active:scale-95"
                   >
-                    ← 上一句
+                    👁 答案
                   </button>
-                )}
-              </div>
+                  <button
+                    onClick={() => handleSpeak(target)}
+                    className="px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 text-sm hover:bg-brand-100 dark:hover:bg-brand-900/40 transition active:scale-95"
+                  >
+                    🔊 朗读
+                  </button>
+                  <button
+                    onClick={handleMicToggle}
+                    disabled={!srSupported}
+                    className={clsx(
+                      'px-3 py-1.5 rounded-lg text-sm transition active:scale-95',
+                      isListening
+                        ? 'bg-red-500 text-white animate-pulse'
+                        : 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40',
+                      !srSupported && 'opacity-40 cursor-not-allowed',
+                    )}
+                    title={srSupported ? srStatusMessage : '浏览器不支持语音识别'}
+                  >
+                    {isListening ? '⏹ 停止' : '🎤 语音'}
+                    {srSupported && srProvider !== 'none' && (
+                      <span className="ml-1 text-xs opacity-60">
+                        {srProvider === 'web-speech' ? '\uD83C\uDF10' : '\uD83D\uDCBB'}
+                      </span>
+                    )}
+                  </button>
+                  {dialogueIdx > 0 && (
+                    <button
+                      onClick={handlePrev}
+                      className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition active:scale-95"
+                    >
+                      ← 上一句
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* 识别中 — 停止按钮 */}
+              {isListening && (
+                <div className="flex items-center justify-center">
+                  <button
+                    onClick={handleMicToggle}
+                    className="px-4 py-1.5 rounded-lg bg-red-500 text-white text-sm hover:bg-red-600 transition active:scale-95"
+                  >
+                    ⏹ 停止识别
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -986,9 +1142,29 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
               <button
                 key={i}
                 onClick={() => {
-                  setSelectedTopic(topic);
-                  setDialogueIdx(0);
-                  setStreak(0);
+                  // 未勾选"复习全部"时，跳过熟知句子
+                  if (!reviewAll) {
+                    const key = `${selectedBand.band}:${i}`;
+                    const masteredIndices = mastery[key] ?? [];
+                    const total = topic.dialogues.length;
+                    // 查找第一个未熟知的句子
+                    let firstNonMastered = 0;
+                    while (firstNonMastered < total && masteredIndices.includes(firstNonMastered)) {
+                      firstNonMastered++;
+                    }
+                    if (firstNonMastered >= total) {
+                      // 全部熟知，提示并跳回
+                      pushToast('该话题已全部熟知，无需复习', 'info');
+                      return;
+                    }
+                    setSelectedTopic(topic);
+                    setDialogueIdx(firstNonMastered);
+                    setStreak(0);
+                  } else {
+                    setSelectedTopic(topic);
+                    setDialogueIdx(0);
+                    setStreak(0);
+                  }
                 }}
                 className="w-full text-left card-container p-4 md:p-5 hover:ring-2 hover:ring-brand-500 transition group active:scale-[0.98]"
               >

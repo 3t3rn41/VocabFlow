@@ -23,12 +23,25 @@ let _currentPlaybackId = -1;
 
 /** 当前正在播放的 Audio 元素 (本地音频 / mimo TTS) */
 let _currentAudio: HTMLAudioElement | null = null;
-/** 当前 Audio 使用的 Object URL (mimo TTS)，用于释放 */
+/** 当前 Audio 使用的 Object URL (本地音频 / mimo TTS)，用于释放 */
 let _currentObjectUrl: string | null = null;
+/** 当前正在播放的 AudioBufferSourceNode (Web Audio API) */
+let _currentSource: AudioBufferSourceNode | null = null;
 
 /** 取消当前正在进行的播放 */
 function cancelCurrentPlayback(): void {
   _currentPlaybackId = -1;
+
+  // 停止 Web Audio API 播放
+  if (_currentSource) {
+    const source = _currentSource;
+    _currentSource = null;
+    try {
+      source.onended = null;
+      source.stop();
+      source.disconnect();
+    } catch { /* ignore */ }
+  }
 
   // 暂停并释放当前 Audio 元素
   if (_currentAudio) {
@@ -206,6 +219,81 @@ export function isBrowserTtsAvailable(): boolean {
 /* ------------------------------------------------------------------ */
 
 /**
+ * 从 Blob 创建 Audio 元素并播放（内部函数）。
+ * 被 speakWithLocalAudio 和 playAudioBlob 共用。
+ *
+ * 关键：先创建不带 src 的 Audio，附加所有监听器后再设置 src，
+ * 确保不会错过 canplaythrough / canplay 事件。
+ * 等待 canplaythrough 事件触发后再播放，避免开头被截断。
+ */
+function playAudioBlobInternal(blob: Blob, playbackId: number, label = ''): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const objectUrl = URL.createObjectURL(blob);
+    _currentObjectUrl = objectUrl;
+
+    let finished = false;
+    const finish = (ok: boolean) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      if (_currentAudio === audio) _currentAudio = null;
+      if (!ok) {
+        URL.revokeObjectURL(objectUrl);
+        if (_currentObjectUrl === objectUrl) _currentObjectUrl = null;
+        try { audio.pause(); audio.src = ''; } catch { /* ignore */ }
+      }
+      resolve(ok);
+    };
+
+    const audio = new Audio();
+    audio.preload = 'auto';
+    _currentAudio = audio;
+
+    audio.onended = () => {
+      URL.revokeObjectURL(objectUrl);
+      if (_currentObjectUrl === objectUrl) _currentObjectUrl = null;
+      finish(true);
+    };
+
+    audio.onerror = () => {
+      if (label) console.warn(`[tts] 音频播放失败 ("${label}"), 回退到 TTS`);
+      finish(false);
+    };
+
+    const timeout = setTimeout(() => {
+      if (label) console.warn(`[tts] 音频超时 ("${label}"), 回退到 TTS`);
+      finish(false);
+    }, 5000);
+
+    let playAttempted = false;
+
+    const tryPlay = () => {
+      if (playbackId !== _currentPlaybackId || playAttempted) {
+        finish(false);
+        return;
+      }
+      playAttempted = true;
+      audio.currentTime = 0;
+      audio.play().then(() => {
+        // 播放已开始，等待 onended
+      }).catch((e) => {
+        if (label) console.warn(`[tts] 音频播放失败 ("${label}"), 回退:`, e.message);
+        finish(false);
+      });
+    };
+
+    audio.addEventListener('canplaythrough', () => {
+      if (!playAttempted) tryPlay();
+    }, { once: true });
+    audio.addEventListener('canplay', () => {
+      if (!playAttempted) tryPlay();
+    }, { once: true });
+
+    audio.src = objectUrl;
+  });
+}
+
+/**
  * 尝试使用本地缓存音频播放。
  * 若 manifest 中找不到对应文本，或音频加载/播放失败，返回 false。
  * 成功播放则返回 true。
@@ -214,52 +302,19 @@ function speakWithLocalAudio(text: string, playbackId: number): Promise<boolean>
   const url = getLocalAudioUrl(text);
   if (!url) return Promise.resolve(false);
 
-  return new Promise<boolean>((resolve) => {
-    // 如果已被取消，直接返回 false（让调用方决定是否回退）
-    if (playbackId !== _currentPlaybackId) {
-      resolve(false);
-      return;
-    }
-
-    let resolved = false;
-    const finish = (ok: boolean) => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timeout);
-      // 清理对 Audio 元素的引用
-      if (_currentAudio === audio) _currentAudio = null;
-      // 失败时暂停音频，防止延迟播放
-      if (!ok) {
-        try { audio.pause(); audio.src = ''; } catch { /* ignore */ }
-      }
-      resolve(ok);
-    };
-
-    const audio = new Audio(url);
-    _currentAudio = audio;
-
-    audio.onended = () => {
-      finish(true);
-    };
-
-    audio.onerror = () => {
-      console.warn(`[tts] 本地音频加载失败 ("${text}"), 回退到 TTS`);
-      finish(false);
-    };
-
-    // 设置超时：如果 5 秒内没有开始播放，视为失败
-    const timeout = setTimeout(() => {
-      console.warn(`[tts] 本地音频超时 ("${text}"), 回退到 TTS`);
-      finish(false);
-    }, 5000);
-
-    audio.play().then(() => {
-      // 播放已开始，等待 onended
-    }).catch((e) => {
-      console.warn(`[tts] 本地音频播放失败 ("${text}"), 回退:`, e.message);
-      finish(false);
+  return fetch(url)
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
+    })
+    .then((blob) => {
+      if (playbackId !== _currentPlaybackId) return false;
+      return playAudioBlobInternal(blob, playbackId, text);
+    })
+    .catch((e) => {
+      console.warn(`[tts] 本地音频加载失败 ("${text}"), 回退到 TTS:`, (e as Error).message);
+      return false;
     });
-  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -279,7 +334,9 @@ function speakWithBrowserTtsInternal(text: string, lang = 'en-US', playbackId: n
       return;
     }
 
-    const utter = new SpeechSynthesisUtterance(text);
+    // SpeechSynthesis 有已知的开头截断 bug（Chrome 尤为明显）
+    // 通过在文本前添加一个空格来让语音引擎"预热"，避免首个单词被吞掉
+    const utter = new SpeechSynthesisUtterance(' ' + text);
     utter.lang = lang;
     utter.rate = 0.9;
     utter.pitch = 1.0;
@@ -291,20 +348,39 @@ function speakWithBrowserTtsInternal(text: string, lang = 'en-US', playbackId: n
       voices.find((v) => v.lang.startsWith(lang.split('-')[0]));
     if (matchedVoice) utter.voice = matchedVoice;
 
-    utter.onend = () => {
-      if (playbackId === _currentPlaybackId) resolve();
-      else resolve(); // 已被取消，静默结束
+    let ended = false;
+    const done = (fn: () => void) => {
+      if (ended) return;
+      ended = true;
+      clearInterval(resumeTimer);
+      fn();
     };
-    utter.onerror = (e) => {
+
+    utter.onend = () => done(() => resolve());
+    utter.onerror = (e) => done(() => {
       if (playbackId === _currentPlaybackId) {
         reject(new Error(e.error || '语音播放失败'));
       } else {
-        resolve(); // 已被取消，静默结束
+        resolve();
       }
-    };
+    });
 
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
+
+    // Chrome bug 修复：speechSynthesis 可能在 15 秒后自动暂停
+    // 定期 resume 以保持播放
+    const resumeTimer = setInterval(() => {
+      if (playbackId !== _currentPlaybackId) {
+        clearInterval(resumeTimer);
+        return;
+      }
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.resume();
+      } else {
+        clearInterval(resumeTimer);
+      }
+    }, 5000);
   });
 }
 
@@ -345,36 +421,199 @@ function speakWithMimoTts(text: string, _lang = 'en-US', playbackId: number): Pr
     _currentObjectUrl = url;
 
     return new Promise<void>((resolve, reject) => {
-      const audio = new Audio(url);
+      // 关键：先创建不带 src 的 Audio，附加所有监听器后再设置 src
+      const audio = new Audio();
+      audio.preload = 'auto';
       _currentAudio = audio;
 
-      audio.onended = () => {
+      const cleanup = () => {
         URL.revokeObjectURL(url);
         if (_currentObjectUrl === url) _currentObjectUrl = null;
         if (_currentAudio === audio) _currentAudio = null;
+      };
+
+      audio.onended = () => {
+        cleanup();
         resolve();
       };
       audio.onerror = () => {
-        URL.revokeObjectURL(url);
-        if (_currentObjectUrl === url) _currentObjectUrl = null;
-        if (_currentAudio === audio) _currentAudio = null;
+        cleanup();
         if (playbackId === _currentPlaybackId) {
           reject(new Error('mimo TTS 音频播放失败'));
         } else {
           resolve();
         }
       };
-      audio.play().catch((e) => {
-        URL.revokeObjectURL(url);
-        if (_currentObjectUrl === url) _currentObjectUrl = null;
-        if (_currentAudio === audio) _currentAudio = null;
-        if (playbackId === _currentPlaybackId) {
-          reject(new Error(`mimo TTS 播放失败: ${e.message}`));
-        } else {
+
+      let playAttempted = false;
+
+      const tryPlay = () => {
+        if (playbackId !== _currentPlaybackId || playAttempted) {
+          cleanup();
           resolve();
+          return;
         }
-      });
+        playAttempted = true;
+        audio.currentTime = 0;
+        audio.play().catch((e) => {
+          cleanup();
+          if (playbackId === _currentPlaybackId) {
+            reject(new Error(`mimo TTS 播放失败: ${e.message}`));
+          } else {
+            resolve();
+          }
+        });
+      };
+
+      // 等待音频数据加载完成后再播放，避免开头被截断
+      audio.addEventListener('canplaythrough', () => {
+        if (!playAttempted) tryPlay();
+      }, { once: true });
+      audio.addEventListener('canplay', () => {
+        if (!playAttempted) tryPlay();
+      }, { once: true });
+
+      // 设置 src 触发加载（在所有监听器附加之后）
+      audio.src = url;
     });
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* 预加载与直接播放 API (Web Audio API)                                  */
+/* ------------------------------------------------------------------ */
+
+/** 预加载的音频数据：包含 Blob（用于 HTMLAudioElement 回退）和 AudioBuffer */
+export interface PreloadedAudio {
+  blob: Blob;
+  buffer: AudioBuffer | null; // Web Audio API 解码失败时为 null
+}
+
+/** 全局 AudioContext，复用避免重复创建 */
+let _audioCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  if (!_audioCtx) {
+    const Ctor = window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    try {
+      _audioCtx = new Ctor();
+    } catch {
+      return null;
+    }
+  }
+  // resume 若被暂停（需用户手势后恢复）
+  if (_audioCtx.state === 'suspended') {
+    _audioCtx.resume().catch(() => {});
+  }
+  return _audioCtx;
+}
+
+/**
+ * 预加载文本对应的本地音频文件。
+ * 在句子加载时调用，fetch + decodeAudioData 完全解码到内存，
+ * 用户完成输入后可直接播放，零延迟、零截断。
+ *
+ * @returns 成功返回 PreloadedAudio，无本地音频或加载失败返回 null
+ */
+export async function preloadAudio(text: string): Promise<PreloadedAudio | null> {
+  await loadAudioManifest();
+  const url = getLocalAudioUrl(text);
+  if (!url) return null;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+
+    // 尝试用 Web Audio API 预解码为 AudioBuffer
+    let buffer: AudioBuffer | null = null;
+    const ctx = getAudioContext();
+    if (ctx) {
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        buffer = await ctx.decodeAudioData(arrayBuffer);
+      } catch {
+        // 解码失败，buffer 保持 null，后续回退到 HTMLAudioElement
+      }
+    }
+
+    return { blob, buffer };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 使用 Web Audio API 播放预解码的 AudioBuffer。
+ *
+ * AudioBuffer 已完全解码在内存中，AudioBufferSourceNode.start(0)
+ * 从第一个样本开始播放，无任何缓冲/加载延迟，彻底消除首单词截断。
+ *
+ * @throws 若播放失败
+ */
+export function playAudioBuffer(buffer: AudioBuffer): Promise<void> {
+  cancelCurrentPlayback();
+  const playbackId = ++_playbackId;
+  _currentPlaybackId = playbackId;
+
+  return new Promise<void>((resolve, reject) => {
+    const ctx = getAudioContext();
+    if (!ctx) {
+      reject(new Error('Web Audio API 不可用'));
+      return;
+    }
+
+    // 确保 AudioContext 已恢复（用户手势后才能播放）
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    _currentSource = source;
+
+    let ended = false;
+    const finish = (err?: Error) => {
+      if (ended) return;
+      ended = true;
+      if (_currentSource === source) _currentSource = null;
+      try { source.disconnect(); } catch { /* ignore */ }
+      if (err && playbackId === _currentPlaybackId) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    };
+
+    source.onended = () => finish();
+    source.onerror = (e) => finish(new Error(`Web Audio 播放失败: ${e}`));
+
+    try {
+      // start(0) 从第一个样本立即播放，零延迟
+      source.start(0);
+    } catch (e) {
+      finish(new Error(`Web Audio start 失败: ${(e as Error).message}`));
+    }
+  });
+}
+
+/**
+ * 直接播放预加载的音频 Blob（HTMLAudioElement 回退方案）。
+ * 会取消当前正在进行的播放。
+ *
+ * @throws 若音频播放失败
+ */
+export function playAudioBlob(blob: Blob): Promise<void> {
+  cancelCurrentPlayback();
+  const playbackId = ++_playbackId;
+  _currentPlaybackId = playbackId;
+
+  return playAudioBlobInternal(blob, playbackId).then((ok) => {
+    if (!ok) throw new Error('音频播放失败');
   });
 }
 

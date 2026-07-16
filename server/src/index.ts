@@ -10,6 +10,7 @@ import { srsRouter } from './routes/srs.js';
 import { sentenceRouter } from './routes/sentences.js';
 import { userRouter } from './routes/user.js';
 import { ttsRouter } from './routes/tts.js';
+import { asrRouter, preloadASRModel } from './routes/asr.js';
 import { authRouter } from './routes/auth.js';
 import { pool } from './db.js';
 
@@ -35,7 +36,11 @@ app.use('/api/srs', srsRouter);            // SRS 路由 (需认证)
 app.use('/api/sentences', sentenceRouter); // 句子练习路由 (需认证)
 app.use('/api/user', userRouter);          // 用户设置路由 (需认证)
 app.use('/api/tts', ttsRouter);            // TTS 代理 (无需认证)
+app.use('/api/asr', asrRouter);            // ASR 语音识别 (需认证)
 
 app.listen(PORT, () => {
   console.log(`[server] VocabFlow API running at http://localhost:${PORT}`);
+
+  // 服务启动后预加载 Whisper ASR 模型（异步，不阻塞服务启动）
+  preloadASRModel();
 });

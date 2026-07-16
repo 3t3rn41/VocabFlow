@@ -1,5 +1,6 @@
 import { PronunciationButton } from '@/components/word/PronunciationButton';
 import { useSettingsStore } from '@/stores/settings';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import type { ReviewItem } from '@/types';
 
 interface FlashCardProps {
@@ -14,33 +15,36 @@ interface FlashCardProps {
  */
 export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
   const autoPlayAudio = useSettingsStore((s) => s.autoPlayAudio);
+  const isMobile = useIsMobile();
 
   // 将释义按空格分割为多个含义
   const meanings = item.meaning_cn.split(/\s+/).filter(Boolean);
 
   return (
-    <div className="flex justify-center">
+    <div className="flex justify-center w-full h-full">
       <div
         onClick={onFlip}
-        className={`flash-card w-full min-h-[280px] md:min-h-[320px] cursor-pointer select-none relative ${flipped ? 'flipped' : ''}`}
+        className={`flash-card w-full h-full max-h-[460px] cursor-pointer select-none relative ${flipped ? 'flipped' : ''}`}
         style={{ perspective: '1200px' }}
       >
         {/* 正面 */}
         <div className="flash-card-face absolute inset-0 card-container p-5 md:p-8 flex flex-col items-center justify-center gap-3 md:gap-4">
           <PronunciationButton spelling={item.word} autoPlay={autoPlayAudio} />
-          <h2 className="text-4xl md:text-5xl font-bold tracking-wide">{item.word}</h2>
+          <h2 className="text-4xl md:text-5xl font-bold tracking-wide text-center break-words max-w-full">{item.word}</h2>
           {item.isNew && (
             <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
               新词
             </span>
           )}
-          <p className="text-sm text-slate-400">点击或按 Space 查看释义</p>
+          <p className="text-sm text-slate-400">
+            {isMobile ? '点击卡片查看释义' : '点击或按 Space 查看释义'}
+          </p>
         </div>
 
         {/* 反面 */}
         <div className="flash-card-face flash-card-back absolute inset-0 card-container p-5 md:p-8 flex flex-col items-center justify-start gap-2 md:gap-3 overflow-auto">
           <div className="w-full text-center">
-            <p className="text-2xl md:text-3xl font-bold mb-1">{item.word}</p>
+            <p className="text-2xl md:text-3xl font-bold mb-1 text-center break-words">{item.word}</p>
             {item.phonetic && (
               <p className="text-sm text-slate-500 mb-1">{item.phonetic}</p>
             )}

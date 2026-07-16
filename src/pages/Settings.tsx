@@ -4,9 +4,9 @@ import { useWordBookStore } from '@/stores/wordBook';
 import { useAuthStore } from '@/stores/auth';
 import { Button } from '@/components/ui/Button';
 import { useUiStore } from '@/stores/ui';
-import { clearAllSrs, rebuildFsrs } from '@/srs/engine';
+import { rebuildFsrs } from '@/srs/engine';
 import { getBookMeta, WORD_BOOKS } from '@/data/wordbooks';
-import { isBrowserTtsAvailable } from '@/api/tts';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useState } from 'react';
 import { clsx } from 'clsx';
 import type { BookKind } from '@/types';
@@ -154,26 +154,16 @@ export function Settings() {
   const pushToast = useUiStore((s) => s.pushToast);
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
+  const isMobile = useIsMobile();
 
   const bookMeta = activeBookId ? getBookMeta(activeBookId) : null;
 
   const [showBookSwitcher, setShowBookSwitcher] = useState(false);
-  const browserTtsOk = isBrowserTtsAvailable();
 
   function handleRetentionChange(value: number) {
     settings.patch({ srsRetention: value });
     rebuildFsrs();
     pushToast(`目标保留率已设为 ${Math.round(value * 100)}%`, 'success');
-  }
-
-  async function handleClearData() {
-    if (!confirm('确认清除所有学习数据？此操作不可恢复。')) return;
-    try {
-      await clearAllSrs();
-      pushToast('已清除所有学习数据', 'success');
-    } catch (e) {
-      pushToast(`清除失败: ${(e as Error).message}`, 'error');
-    }
   }
 
   async function handleSwitchBook(bookId: string) {
@@ -255,8 +245,8 @@ export function Settings() {
             value={settings.keyboardLayout}
             onChange={(e) => settings.patch({ keyboardLayout: e.target.value as '3key' | '4key' })}
           >
-            <option value="3key">三键 (认识/模糊/忘记)</option>
-            <option value="4key">四键 (+熟知)</option>
+            <option value="3key">{isMobile ? '三键' : '三键 (1/2/3)'}</option>
+            <option value="4key">{isMobile ? '四键' : '四键 (1/2/3/4)'}</option>
           </select>
         </div>
         <div className="flex items-center justify-between">
@@ -311,29 +301,6 @@ export function Settings() {
         </div>
       </section>
 
-      {/* TTS 发音 */}
-      <section className="card-container p-6 space-y-4">
-        <h3 className="font-semibold">TTS 发音</h3>
-        <div className="space-y-2">
-          <p className="text-sm text-slate-500">音频播放优先级：</p>
-          <div className="text-xs text-slate-400 space-y-1">
-            <p>① 本地缓存音频（优先）</p>
-            <p>② 浏览器内置语音 — {browserTtsOk ? '✅ 可用' : '❌ 不支持'}</p>
-            <p>③ mimo TTS 在线服务（最终回退）</p>
-          </div>
-        </div>
-      </section>
-
-      {/* 危险区 */}
-      <section className="card-container p-6 space-y-4">
-        <h3 className="font-semibold text-red-500">危险区</h3>
-        <Button variant="danger" onClick={handleClearData}>
-          清除所有学习数据
-        </Button>
-        <p className="text-xs text-slate-400">
-          清除所有 SRS 卡片状态和复习日志，词书数据不受影响。
-        </p>
-      </section>
     </div>
   );
 }

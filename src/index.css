@@ -179,6 +179,19 @@
 }
 
 /* ================================================================
+   复习评分按钮 — 从底部冒出动画
+   ================================================================ */
+
+@keyframes gradeEmerge {
+  0%   { transform: translateY(40px); opacity: 0; }
+  60%  { transform: translateY(-4px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.animate-gradeEmerge {
+  animation: gradeEmerge 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ================================================================
    单词槽位 (Word Slots) — 下划线占位拼写
    ================================================================ */
 
