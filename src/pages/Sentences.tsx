@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { getSentenceBands, getBookMeta } from '@/data/wordbooks';
 import { speakWithBrowserTts } from '@/api/tts';
 import {
@@ -13,7 +14,15 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { scorePronunciation, type PronunciationResult } from '@/utils/pronunciationScore';
 import { PronunciationResultPanel } from '@/components/review/PronunciationResultPanel';
+import {
+  proficiencyToGrade,
+  reviewSentence,
+  generateSentenceReviewQueue,
+  generateUnmasteredReviewQueue,
+  type SentenceReviewItem,
+} from '@/utils/sentenceSrs';
 import { Button } from '@/components/ui/Button';
+import { Spinner } from '@/components/ui/Spinner';
 import { clsx } from 'clsx';
 import type { SentenceBand, SentenceTopic } from '@/types';
 
@@ -220,6 +229,13 @@ export function Sentences() {
   const [reviewAll, setReviewAll] = useState(false); // 是否复习全部（包括熟知）
   const [lastProficiency, setLastProficiency] = useState<number | null>(null);
 
+  // SRS 复习模式
+  const [srsReviewQueue, setSrsReviewQueue] = useState<SentenceReviewItem[] | null>(null);
+  const [srsReviewIdx, setSrsReviewIdx] = useState(0);
+  const [srsDueCount, setSrsDueCount] = useState(0);
+  const [srsLoading, setSrsLoading] = useState(false);
+  const [reviewMode, setReviewMode] = useState<'srs' | 'unmastered' | null>(null);
+
   // 语音识别状态
   const [pronunciationResult, setPronunciationResult] = useState<PronunciationResult | null>(null);
   const [showPronunciationPanel, setShowPronunciationPanel] = useState(false);
@@ -234,6 +250,95 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
   const pushToast = useUiStore((s) => s.pushToast);
   const autoPlayAudio = useSettingsStore((s) => s.autoPlayAudio);
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // === 加载 SRS 到期句子数量 ===
+  useEffect(() => {
+    if (!activeBookId || !bookMeta || bookMeta.kind !== 'sentence') return;
+    generateSentenceReviewQueue(activeBookId, bands)
+      .then((queue) => {
+        setSrsDueCount(queue.length);
+      })
+      .catch(() => {});
+  }, [activeBookId, bands, bookMeta, restored]);
+
+  // === 进入 SRS 复习模式 ===
+  const enterSrsReview = useCallback(async () => {
+    if (!activeBookId) return;
+    setSrsLoading(true);
+    try {
+      const queue = await generateSentenceReviewQueue(activeBookId, bands);
+      if (queue.length === 0) {
+        pushToast('暂无到期句子需要复习', 'info');
+        return;
+      }
+      setReviewMode('srs');
+      setSrsReviewQueue(queue);
+      setSrsReviewIdx(0);
+      const first = queue[0];
+      const band = bands.find((b) => b.band === first.band);
+      if (band && first.topicIdx < band.topics.length) {
+        setSelectedBand(band);
+        setSelectedTopic(band.topics[first.topicIdx]);
+        setDialogueIdx(first.dialogueIdx);
+        setStreak(0);
+      }
+    } catch (e) {
+      pushToast(`加载复习队列失败: ${(e as Error).message}`, 'error');
+    } finally {
+      setSrsLoading(false);
+    }
+  }, [activeBookId, bands, pushToast]);
+
+  // === 进入未熟知复习模式 ===
+  const enterUnmasteredReview = useCallback(async () => {
+    setSrsLoading(true);
+    try {
+      const queue = await generateUnmasteredReviewQueue(bands);
+      if (queue.length === 0) {
+        pushToast('暂无需要复习的未熟知句子', 'info');
+        return;
+      }
+      setReviewMode('unmastered');
+      setSrsReviewQueue(queue);
+      setSrsReviewIdx(0);
+      const first = queue[0];
+      const band = bands.find((b) => b.band === first.band);
+      if (band && first.topicIdx < band.topics.length) {
+        setSelectedBand(band);
+        setSelectedTopic(band.topics[first.topicIdx]);
+        setDialogueIdx(first.dialogueIdx);
+        setStreak(0);
+      }
+    } catch (e) {
+      pushToast(`加载复习队列失败: ${(e as Error).message}`, 'error');
+    } finally {
+      setSrsLoading(false);
+    }
+  }, [bands, pushToast]);
+
+  // === 退出 SRS 复习模式 ===
+  const exitSrsReview = useCallback(() => {
+    setSrsReviewQueue(null);
+    setSrsReviewIdx(0);
+    setReviewMode(null);
+    setSelectedBand(null);
+    setSelectedTopic(null);
+    setDialogueIdx(0);
+    setStreak(0);
+  }, []);
+
+  // === 从 URL 查询参数进入未熟知复习模式 ===
+  useEffect(() => {
+    if (!restored) return;
+    const reviewParam = searchParams.get('review');
+    if (reviewParam === 'unmastered' && !srsReviewQueue) {
+      // 清除查询参数，避免刷新后重复触发
+      setSearchParams({}, { replace: true });
+      enterUnmasteredReview();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored]);
 
   // === 初始化：加载进度 + mastery + 恢复位置 ===
   useEffect(() => {
@@ -326,6 +431,25 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
 
   // === handleNext ===
   const handleNext = useCallback(() => {
+    // SRS 复习模式：进入队列下一句
+    if (srsReviewQueue) {
+      if (srsReviewIdx < srsReviewQueue.length - 1) {
+        const nextIdx = srsReviewIdx + 1;
+        setSrsReviewIdx(nextIdx);
+        const item = srsReviewQueue[nextIdx];
+        const band = bands.find((b) => b.band === item.band);
+        if (band && item.topicIdx < band.topics.length) {
+          setSelectedBand(band);
+          setSelectedTopic(band.topics[item.topicIdx]);
+          setDialogueIdx(item.dialogueIdx);
+        }
+      } else {
+        pushToast(reviewMode === 'unmastered' ? '🎉 未熟知复习完成！' : '🎉 SRS 复习完成！', 'success');
+        exitSrsReview();
+      }
+      return;
+    }
+
     if (!selectedTopic) return;
     if (dialogueIdx < selectedTopic.dialogues.length - 1) {
       const nextIdx = dialogueIdx + 1;
@@ -354,7 +478,7 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
       setDialogueIdx(0);
       setStreak(0);
     }
-  }, [selectedTopic, dialogueIdx, selectedBand, topicIdx, mastery, reviewAll, pushToast]);
+  }, [selectedTopic, dialogueIdx, selectedBand, topicIdx, mastery, reviewAll, pushToast, srsReviewQueue, srsReviewIdx, bands, exitSrsReview]);
 
   // === 成功触发 ===
   const triggerSuccess = useCallback(() => {
@@ -384,6 +508,10 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
         typoCount: t.typoCount,
       }).catch(() => {});
 
+      // SRS 评分（将熟练度映射为 Grade 并持久化）
+      const grade = proficiencyToGrade(proficiency);
+      reviewSentence(activeBookId, { band: selectedBand.band, topicIdx, dialogueIdx }, grade).catch(() => {});
+
       // 如果熟练度足够高，自动标记熟知
       if (shouldAutoMarkMastery(proficiency)) {
         sentenceApi.markMastery({
@@ -408,7 +536,7 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
         speakWithBrowserTts(target, 'en-US').catch(() => {});
       }, 300);
     }
-  }, [selectedBand, topicIdx, dialogueIdx, autoPlayAudio, target, wordSlots.length]);
+  }, [selectedBand, topicIdx, dialogueIdx, autoPlayAudio, target, wordSlots.length, activeBookId]);
 
   // === 检查并前进 ===
   const advanceOrSuccess = useCallback((
@@ -740,14 +868,34 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
   if (selectedTopic && currentDialogue) {
     return (
       <div className="max-w-2xl mx-auto space-y-4 md:space-y-5">
-        {/* 顶部导航 */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => { setSelectedTopic(null); setStreak(0); }}
-            className="text-sm text-slate-500 hover:text-slate-700 transition"
-          >
-            ← 返回话题
-          </button>
+          {/* SRS 复习模式头部 */}
+          {srsReviewQueue && (
+            <div className="flex items-center justify-between">
+              <button
+                onClick={exitSrsReview}
+                className="text-sm text-slate-500 hover:text-slate-700 transition"
+              >
+                ← 退出复习
+              </button>
+              <span className="text-sm text-brand-600 font-medium">
+                {reviewMode === 'unmastered'
+                  ? `🔄 未熟知复习 ${srsReviewIdx + 1} / ${srsReviewQueue.length}`
+                  : `🔄 SRS复习 ${srsReviewIdx + 1} / ${srsReviewQueue.length}`}
+              </span>
+            </div>
+          )}
+
+          {/* 顶部导航 */}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => { 
+                if (srsReviewQueue) exitSrsReview();
+                else { setSelectedTopic(null); setStreak(0); }
+              }}
+              className="text-sm text-slate-500 hover:text-slate-700 transition"
+            >
+              ← {srsReviewQueue ? '退出复习' : '返回话题'}
+            </button>
           <div className="flex items-center gap-3">
             {isMastered && (
               <span className="text-xs text-purple-500 font-medium bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded-full">
@@ -1166,7 +1314,8 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
                     setStreak(0);
                   }
                 }}
-                className="w-full text-left card-container p-4 md:p-5 hover:ring-2 hover:ring-brand-500 transition group active:scale-[0.98]"
+                className="w-full text-left card-container p-4 md:p-5 hover:ring-2 hover:ring-brand-500 transition group active:scale-[0.98] card-hover-lift animate-stagger"
+                style={{ animationDelay: `${(i + 1) * 50}ms` }}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-medium group-hover:text-brand-600 transition">
@@ -1199,6 +1348,15 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
   // Band 选择视图
   // ================================================================
 
+  if (srsLoading) {
+    return (
+      <div className="h-full flex items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <span className="text-slate-500">加载复习队列...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-4 md:space-y-6 animate-fadeInUp">
       <div className="text-center">
@@ -1207,6 +1365,27 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
           {bookMeta?.title ?? '句子练习'} · 中译英拼写练习
         </p>
       </div>
+
+      {/* SRS 复习入口 */}
+      {srsDueCount > 0 && (
+        <button
+          onClick={enterSrsReview}
+          disabled={srsLoading}
+          className="w-full text-left card-container p-4 md:p-5 hover:ring-2 hover:ring-brand-500 transition group active:scale-[0.98] bg-gradient-to-r from-brand-50 to-purple-50 dark:from-brand-900/20 dark:to-purple-900/20"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔄</span>
+              <div>
+                <p className="font-bold text-brand-600 group-hover:text-brand-700 transition">SRS 复习</p>
+                <p className="text-sm text-slate-500 mt-0.5">到期句子智能复习</p>
+              </div>
+            </div>
+            <span className="text-lg font-bold text-orange-500 animate-scaleBounce">{srsDueCount}</span>
+          </div>
+        </button>
+      )}
+
       <div className="space-y-3">
         {bands.map((band) => {
           const totalDialogues = band.topics.reduce((s, t) => s + t.dialogues.length, 0);
@@ -1224,7 +1403,8 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
             <button
               key={band.band}
               onClick={() => setSelectedBand(band)}
-              className="w-full text-left card-container p-4 md:p-5 hover:ring-2 hover:ring-brand-500 transition group active:scale-[0.98]"
+              className="w-full text-left card-container p-4 md:p-5 hover:ring-2 hover:ring-brand-500 transition group active:scale-[0.98] card-hover-lift animate-stagger"
+              style={{ animationDelay: `${band.band * 60}ms` }}
             >
               <div className="flex items-center justify-between mb-2">
                 <div>

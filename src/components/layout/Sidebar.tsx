@@ -7,18 +7,22 @@ import { clsx } from 'clsx';
 
 const NAV = [
   { to: '/today', label: '学习', icon: '📖' },
+  { to: '/review', label: '复习', icon: '🔄', wordOnly: true },
+  { to: '/dictation', label: '听写', icon: '📝', wordOnly: true },
   { to: '/words', label: '词库', icon: '📚' },
   { to: '/sentences', label: '句子', icon: '💬' },
   { to: '/settings', label: '设置', icon: '⚙️' },
 ];
 
-/** 过滤导航项：单词模式下不显示句子 tab，句子模式下不显示词库 tab */
+/** 过滤导航项：单词模式下不显示句子 tab，句子模式下不显示词库/复习/听写 tab */
 function useFilteredNav() {
   const activeBookId = useWordBookStore((s) => s.activeBookId);
   const bookMeta = activeBookId ? getBookMeta(activeBookId) : null;
   return NAV.filter((item) => {
     if (item.to === '/sentences' && bookMeta?.kind === 'word') return false;
     if (item.to === '/words' && bookMeta?.kind === 'sentence') return false;
+    // wordOnly 的项仅在单词模式下显示
+    if ('wordOnly' in item && item.wordOnly && bookMeta?.kind === 'sentence') return false;
     return true;
   });
 }

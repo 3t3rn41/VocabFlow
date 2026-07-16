@@ -284,6 +284,55 @@ export function Settings() {
         </div>
       </section>
 
+      {/* 学习提醒 */}
+      <section className="card-container p-6 space-y-4">
+        <h3 className="font-semibold">学习提醒</h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm">启用学习提醒</span>
+            <p className="text-xs text-slate-400 mt-0.5">到达设定时间未学习时发送通知</p>
+          </div>
+          <input
+            type="checkbox"
+            checked={settings.reminderEnabled}
+            onChange={(e) => {
+              settings.patch({ reminderEnabled: e.target.checked });
+              if (e.target.checked && 'Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission().then((perm) => {
+                  if (perm === 'granted') {
+                    pushToast('通知已开启', 'success');
+                  } else {
+                    pushToast('请在浏览器设置中允许通知', 'error');
+                  }
+                });
+              }
+            }}
+            className="w-4 h-4"
+          />
+        </div>
+        {settings.reminderEnabled && (
+          <div className="flex items-center justify-between">
+            <span className="text-sm">提醒时间</span>
+            <input
+              type="time"
+              value={settings.reminderTime}
+              onChange={(e) => settings.patch({ reminderTime: e.target.value })}
+              className="input-base w-32"
+            />
+          </div>
+        )}
+        {settings.reminderEnabled && 'Notification' in window && Notification.permission !== 'granted' && (
+          <p className="text-xs text-amber-500">
+            ⚠️ 浏览器通知权限未开启，请点击上方开关重新授权
+          </p>
+        )}
+        {settings.reminderEnabled && !('Notification' in window) && (
+          <p className="text-xs text-red-400">
+            ⚠️ 当前浏览器不支持通知功能
+          </p>
+        )}
+      </section>
+
       {/* 外观 */}
       <section className="card-container p-6 space-y-4">
         <h3 className="font-semibold">外观</h3>

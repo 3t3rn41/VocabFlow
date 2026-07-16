@@ -356,3 +356,139 @@ caret-color: transparent;                /* 隐藏光标，防止浏览器自动
 .slot-pop-in {
   animation: slotPopIn 0.2s ease forwards;
 }
+
+/* ================================================================
+   新增动画 — v1.6
+   ================================================================ */
+
+/* 卡片滑出（向左） */
+@keyframes cardSlideOutLeft {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(-60px) scale(0.95); }
+}
+.animate-cardSlideOut {
+  animation: cardSlideOutLeft 0.25s ease forwards;
+}
+
+/* 卡片滑入（从右） */
+@keyframes cardSlideInRight {
+  from { opacity: 0; transform: translateX(60px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+.animate-cardSlideIn {
+  animation: cardSlideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 交错列表项渐入 */
+@keyframes staggerFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-stagger {
+  opacity: 0;
+  animation: staggerFadeIn 0.4s ease forwards;
+}
+
+/* 空状态弹跳 */
+@keyframes emptyBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+.animate-emptyBounce {
+  animation: emptyBounce 2s ease-in-out infinite;
+}
+
+/* 进度条微光 */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-bar {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* 数字翻滚渐入 */
+@keyframes numberPop {
+  0%   { opacity: 0; transform: translateY(-8px) scale(0.8); }
+  60%  { opacity: 1; transform: translateY(2px) scale(1.05); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-numberPop {
+  animation: numberPop 0.4s ease forwards;
+}
+
+/* 按钮波纹 */
+@keyframes ripple {
+  to { transform: scale(4); opacity: 0; }
+}
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: scale(0);
+  animation: ripple 0.6s ease;
+  pointer-events: none;
+}
+
+/* 卡片悬停抬升 */
+.card-hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+}
+
+/* 淡入缩放 */
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-fadeInScale {
+  animation: fadeInScale 0.3s ease forwards;
+}
+
+/* 心跳脉冲（提醒徽章） */
+@keyframes heartBeat {
+  0%, 100% { transform: scale(1); }
+  25%      { transform: scale(1.1); }
+  50%      { transform: scale(0.95); }
+  75%      { transform: scale(1.05); }
+}
+.animate-heartBeat {
+  animation: heartBeat 1.5s ease infinite;
+}
+
+/* 滑入淡出（通用） */
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slideInRight {
+  animation: slideInFromRight 0.3s ease forwards;
+}
+
+/* Toast 弹入 */
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(100%) translateY(0); }
+  to   { opacity: 1; transform: translateX(0) translateY(0); }
+}
+.animate-toastIn {
+  animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 简单淡入 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease forwards;
+}

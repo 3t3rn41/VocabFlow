@@ -142,8 +142,9 @@ export function Review() {
   if (!items.length) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4">
-        <div className="card-container p-6 md:p-12 text-center space-y-4">
-          <p className="text-xl">🎉 今日学习已完成</p>
+        <div className="card-container p-6 md:p-12 text-center space-y-4 animate-fadeInScale">
+          <div className="text-5xl animate-emptyBounce">🎉</div>
+          <p className="text-xl">今日学习已完成</p>
           <p className="text-sm text-slate-500">没有更多待复习的单词</p>
           <Button variant="primary" onClick={() => navigate('/today')}>
             返回今日
@@ -177,12 +178,13 @@ export function Review() {
 
       {/* 卡片区域 — flex-1 填满剩余空间 */}
       <div className="flex-1 flex items-center justify-center min-h-0 py-4">
-        <FlashCard
-          key={current.wordId}
-          item={current}
-          flipped={flipped}
-          onFlip={() => setFlipped(true)}
-        />
+        <div key={current.wordId} className="w-full h-full animate-cardSlideIn">
+          <FlashCard
+            item={current}
+            flipped={flipped}
+            onFlip={() => setFlipped(true)}
+          />
+        </div>
       </div>
 
       {/* 评分按钮 — 翻转后从底部冒出 */}

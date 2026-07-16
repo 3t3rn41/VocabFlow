@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWordBookStore } from '@/stores/wordBook';
-import { getBookMeta } from '@/data/wordbooks';
+import { getBookMeta, getSentenceBands } from '@/data/wordbooks';
 import { getTodayProgress, getBookStats, loadReviewLogs } from '@/srs/engine';
 import { sentenceApi, type SentenceStats } from '@/api/client';
+import { getSentenceSrsStats, getUnmasteredReviewCount } from '@/utils/sentenceSrs';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { ProgressRing } from '@/components/review/ProgressRing';
@@ -18,6 +19,8 @@ export function Today() {
   const [streakDays, setStreakDays] = useState(0);
   const [reviewsTotal, setReviewsTotal] = useState(0);
   const [sentenceStats, setSentenceStats] = useState<SentenceStats | null>(null);
+  const [sentenceSrsDue, setSentenceSrsDue] = useState(0);
+  const [unmasteredCount, setUnmasteredCount] = useState(0);
 
   const bookMeta = activeBookId ? getBookMeta(activeBookId) : null;
   const isSentenceBook = bookMeta?.kind === 'sentence';
@@ -31,10 +34,18 @@ export function Today() {
     try {
       if (isSentenceBook) {
         // 句子模式：从 sentence_practice_log 获取统计
-        const sStats = await sentenceApi.getStats();
+        const [sStats, srsStats] = await Promise.all([
+          sentenceApi.getStats(),
+          getSentenceSrsStats(activeBookId),
+        ]);
         setSentenceStats(sStats);
+        setSentenceSrsDue(srsStats.dueCount);
         setStreakDays(sStats.streakDays);
         setReviewsTotal(sStats.totalPractices);
+
+        // 获取已完成但未熟知的句子数量
+        const unmastered = await getUnmasteredReviewCount();
+        setUnmasteredCount(unmastered);
       } else {
         // 单词模式：从 SRS 获取统计
         const [p, s, logs] = await Promise.all([
@@ -129,13 +140,25 @@ export function Today() {
               </p>
             )}
           </div>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => navigate('/sentences')}
-          >
-            开始句子练习
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => navigate('/sentences')}
+            >
+              开始句子练习
+            </Button>
+            {unmasteredCount > 0 && (
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => navigate('/sentences?review=unmastered')}
+                className="text-orange-500 ring-2 ring-orange-300 dark:ring-orange-700"
+              >
+                🔄 复习 {unmasteredCount}
+              </Button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="card-container p-6 md:p-8 flex flex-col items-center gap-4 md:gap-6">
@@ -150,47 +173,56 @@ export function Today() {
           </div>
           <div className="flex gap-4 md:gap-6 text-center">
             <div>
-              <p className="text-xl md:text-2xl font-bold text-orange-500">{progress.dueCount}</p>
+              <p className="text-xl md:text-2xl font-bold text-orange-500 animate-numberPop">{progress.dueCount}</p>
               <p className="text-xs text-slate-500">待复习</p>
             </div>
             <div>
-              <p className="text-xl md:text-2xl font-bold text-green-500">{progress.newCount}</p>
+              <p className="text-xl md:text-2xl font-bold text-green-500 animate-numberPop">{progress.newCount}</p>
               <p className="text-xs text-slate-500">新词</p>
             </div>
           </div>
-          <Button
-            variant="primary"
-            size="lg"
-            onClick={() => navigate('/review')}
-            disabled={totalToday === 0 && progress.finishedToday > 0}
-          >
-            {totalToday === 0 && progress.finishedToday > 0
-              ? '今日已完成 🎉'
-              : progress.finishedToday > 0
-                ? '继续学习'
-                : '开始学习'}
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => navigate('/review')}
+              disabled={totalToday === 0 && progress.finishedToday > 0}
+            >
+              {totalToday === 0 && progress.finishedToday > 0
+                ? '今日已完成 🎉'
+                : progress.finishedToday > 0
+                  ? '继续学习'
+                  : '开始学习'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="lg"
+              onClick={() => navigate('/dictation')}
+            >
+              📝 听写
+            </Button>
+          </div>
         </div>
       )}
 
       {/* 统计概览 */}
       <div className="grid grid-cols-3 gap-2 md:gap-4">
-        <div className="card-container p-3 md:p-4 text-center">
-          <p className="text-xl md:text-2xl font-bold text-brand-600">
+        <div className="card-container p-3 md:p-4 text-center animate-stagger" style={{ animationDelay: '0ms' }}>
+          <p className="text-xl md:text-2xl font-bold text-brand-600 animate-numberPop">
             {isSentenceBook ? (sentenceStats?.learnedSentences ?? 0) : stats.learned}
           </p>
           <p className="text-xs text-slate-500 mt-1">
             {isSentenceBook ? '已学句子' : '已学单词'}
           </p>
         </div>
-        <div className="card-container p-3 md:p-4 text-center">
-          <p className="text-xl md:text-2xl font-bold text-brand-600">{reviewsTotal}</p>
+        <div className="card-container p-3 md:p-4 text-center animate-stagger" style={{ animationDelay: '60ms' }}>
+          <p className="text-xl md:text-2xl font-bold text-brand-600 animate-numberPop">{reviewsTotal}</p>
           <p className="text-xs text-slate-500 mt-1">
             {isSentenceBook ? '总练习' : '总复习'}
           </p>
         </div>
-        <div className="card-container p-3 md:p-4 text-center">
-          <p className="text-xl md:text-2xl font-bold text-brand-600">{streakDays}</p>
+        <div className="card-container p-3 md:p-4 text-center animate-stagger" style={{ animationDelay: '120ms' }}>
+          <p className="text-xl md:text-2xl font-bold text-brand-600 animate-numberPop">{streakDays}</p>
           <p className="text-xs text-slate-500 mt-1">坚持天数</p>
         </div>
       </div>
@@ -207,7 +239,7 @@ export function Today() {
           </div>
           <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
             <div
-              className="h-full bg-brand-500 rounded-full transition-all"
+              className="h-full bg-brand-500 rounded-full transition-all shimmer-bar"
               style={{ width: `${stats.total > 0 ? (stats.learned / stats.total) * 100 : 0}%` }}
             />
           </div>

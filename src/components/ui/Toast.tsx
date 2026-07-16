@@ -13,7 +13,7 @@ export function ToastContainer() {
         <div
           key={t.id}
           className={clsx(
-            'px-4 py-3 rounded-lg shadow-lg border cursor-pointer transition',
+            'px-4 py-3 rounded-lg shadow-lg border cursor-pointer transition animate-toastIn',
             'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700',
             { 'border-l-4 border-l-green-500': t.type === 'success' },
             { 'border-l-4 border-l-red-500': t.type === 'error' },

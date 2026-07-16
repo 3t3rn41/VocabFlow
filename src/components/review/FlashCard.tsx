@@ -28,7 +28,7 @@ export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
         style={{ perspective: '1200px' }}
       >
         {/* 正面 */}
-        <div className="flash-card-face absolute inset-0 card-container p-5 md:p-8 flex flex-col items-center justify-center gap-3 md:gap-4">
+        <div className="flash-card-face absolute inset-0 card-container p-5 md:p-8 flex flex-col items-center justify-center gap-3 md:gap-4 card-hover-lift">
           <PronunciationButton spelling={item.word} autoPlay={autoPlayAudio} />
           <h2 className="text-4xl md:text-5xl font-bold tracking-wide text-center break-words max-w-full">{item.word}</h2>
           {item.isNew && (
