@@ -31,7 +31,7 @@ export function Login() {
         pushToast('登录成功', 'success');
       } else {
         await register(username.trim(), password);
-        pushToast('注册成功，欢迎使用 VocabFlow！', 'success');
+        pushToast('注册成功，欢迎使用涓词！', 'success');
       }
     } catch (err) {
       const msg = (err as Error).message;
@@ -51,7 +51,7 @@ export function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg mb-4">
             <span className="text-3xl">📚</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-800 dark:text-white">VocabFlow</h1>
+          <h1 className="text-3xl font-bold text-slate-800 dark:text-white">涓词 <span className="text-lg font-normal text-slate-400">VocabFlow</span></h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             科学背词，高效复习
           </p>

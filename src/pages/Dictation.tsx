@@ -206,7 +206,7 @@ export function Dictation() {
   if (items.length === 0) {
     return (
       <div className="max-w-md mx-auto mt-20 text-center space-y-4 animate-fadeInUp">
-        <div className="text-5xl animate-scaleBounce">📝</div>
+        <div className="text-5xl animate-scaleBounce">Done</div>
         <p className="text-slate-500">暂无需要听写的单词</p>
         <Button variant="primary" onClick={() => navigate('/today')}>
           返回今日
@@ -254,11 +254,11 @@ export function Dictation() {
         <div className="flex items-center gap-3">
           {streak > 0 && (
             <span className="text-sm text-orange-500 font-bold animate-scaleBounce">
-              🔥 {streak}
+              Streak {streak}
             </span>
           )}
           <span className="text-sm text-slate-500">
-            📝 {idx + 1} / {items.length}
+            {idx + 1} / {items.length}
           </span>
         </div>
       </div>
@@ -292,17 +292,17 @@ export function Dictation() {
               )}
               title="再听一遍 (空格键)"
             >
-              <span className="text-3xl">🔊</span>
+              <span className="text-3xl font-bold text-brand-600">A</span>
             </button>
           </div>
           <p className="text-sm text-slate-400">
             {phase === 'listening'
               ? '听音频，拼写单词'
               : phase === 'correct'
-                ? '✅ 拼写正确！'
+                ? '拼写正确'
                 : phase === 'wrong'
-                  ? '❌ 拼写错误'
-                  : '👁 答案已显示'}
+                  ? '拼写错误'
+                  : '答案已显示'}
           </p>
         </div>
 
@@ -336,24 +336,24 @@ export function Dictation() {
                 onClick={handleHint}
                 className="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-sm hover:bg-amber-100 dark:hover:bg-amber-900/40 transition active:scale-95"
               >
-                💡 提示
+                提示
               </button>
               <button
                 onClick={handleReveal}
                 className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition active:scale-95"
               >
-                👁 看答案
+                看答案
               </button>
               <button
                 onClick={() => currentItem && playAudio(currentItem.word)}
                 className="px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 text-sm hover:bg-brand-100 dark:hover:bg-brand-900/40 transition active:scale-95"
               >
-                🔊 重听
+                重听
               </button>
             </div>
             {!isAudioUnlocked() && (
               <p className="text-center text-xs text-amber-500">
-                🔔 点击页面任意位置以解锁音频
+                点击页面任意位置以解锁音频
               </p>
             )}
           </div>
@@ -389,7 +389,7 @@ export function Dictation() {
             {/* 释义 */}
             <div className="border-t border-slate-200 dark:border-slate-700 pt-3 space-y-2">
               <p className="text-xs text-slate-400 font-medium">
-                {currentItem?.pos ? `📖 ${currentItem.pos}` : '📖 释义'}
+                {currentItem?.pos ? currentItem.pos : '释义'}
               </p>
               <p className="text-base text-slate-700 dark:text-slate-200">
                 {currentItem?.meaning_cn}
@@ -408,7 +408,7 @@ export function Dictation() {
             {phase === 'wrong' && (
               <div className="flex justify-center">
                 <Button variant="ghost" size="sm" onClick={handleRetry}>
-                  🔄 重新听写
+                  重新听写
                 </Button>
               </div>
             )}

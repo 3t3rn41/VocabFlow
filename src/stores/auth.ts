@@ -13,21 +13,15 @@ import {
 interface AuthState {
   user: AuthUser | null;
   loading: boolean;
-  /** 是否已登录 */
   isAuthenticated: boolean;
 
-  /** 初始化: 检查本地 token 是否有效 */
   init: () => Promise<void>;
-  /** 登录 */
   login: (username: string, password: string) => Promise<void>;
-  /** 注册 */
   register: (username: string, password: string) => Promise<void>;
-  /** 登出 */
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => {
-  // 注册 401 回调: token 过期时自动登出
   onUnauthorized(() => {
     set({ user: null, isAuthenticated: false });
   });

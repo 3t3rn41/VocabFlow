@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useUiStore } from '@/stores/ui';
 import { useSettingsStore } from '@/stores/settings';
 import { useWordBookStore } from '@/stores/wordBook';
@@ -12,6 +13,22 @@ export function Topbar() {
   const bookMeta = activeBookId ? getBookMeta(activeBookId) : null;
   const username = useAuthStore((s) => s.user?.username);
   const logout = useAuthStore((s) => s.logout);
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  function handleFullscreenToggle() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }
 
   /** 点击太阳/月亮图标，在亮色/暗色之间直接切换 */
   function handleThemeToggle() {
@@ -42,10 +59,10 @@ export function Topbar() {
         >
           ☰
         </button>
-        <span className="md:hidden font-bold text-brand-600 text-lg">VocabFlow</span>
+        <span className="md:hidden font-bold text-brand-600 text-lg">涓词 VocabFlow</span>
         {bookMeta && (
           <span className="hidden sm:inline text-xs text-slate-400 truncate max-w-[160px]">
-            📖 {bookMeta.title}
+            {bookMeta.title}
           </span>
         )}
       </div>
@@ -56,6 +73,13 @@ export function Topbar() {
           title={isDarkActive ? '切换为浅色' : '切换为深色'}
         >
           {isDarkActive ? '🌙' : '☀️'}
+        </button>
+        <button
+          onClick={handleFullscreenToggle}
+          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition text-lg leading-none"
+          title={isFullscreen ? '退出全屏' : '全屏'}
+        >
+          {isFullscreen ? '🗗' : '⛶'}
         </button>
         {username && (
           <div className="flex items-center gap-2">

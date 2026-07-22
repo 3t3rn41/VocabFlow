@@ -590,7 +590,6 @@ export function playAudioBuffer(buffer: AudioBuffer): Promise<void> {
     };
 
     source.onended = () => finish();
-    source.onerror = (e) => finish(new Error(`Web Audio 播放失败: ${e}`));
 
     try {
       // start(0) 从第一个样本立即播放，零延迟

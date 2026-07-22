@@ -1,15 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FlashCard } from '@/components/review/FlashCard';
 import { GradeButtons } from '@/components/review/GradeButtons';
 import { ReviewComplete } from '@/components/review/ReviewComplete';
 import { useSettingsStore } from '@/stores/settings';
 import { useWordBookStore } from '@/stores/wordBook';
+import { useSwipe } from '@/hooks/useSwipe';
 import { Grade } from '@/types';
 import type { ReviewItem } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { generateReviewQueue, reviewAndPersist, undoReview } from '@/srs/engine';
+import type { ReviewFilter } from '@/srs/engine';
 import { clsx } from 'clsx';
 
 export function Review() {
@@ -25,6 +27,17 @@ export function Review() {
   const [finished, setFinished] = useState(false);
   const [loading, setLoading] = useState(true);
   const [grading, setGrading] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [filter, setFilter] = useState<ReviewFilter | undefined>(undefined);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // 手势支持：左滑 Again, 右滑 Good, 上滑翻卡, 下滑跳过
+  useSwipe(cardRef, {
+    onSwipeLeft: () => { if (flipped) handleGrade(Grade.Again); },
+    onSwipeRight: () => { if (flipped) handleGrade(Grade.Good); },
+    onSwipeUp: () => { if (!flipped) setFlipped(true); },
+    onSwipeDown: () => { handleSkip(); },
+  });
 
   // 生成复习队列
   useEffect(() => {
@@ -40,7 +53,7 @@ export function Review() {
     setLoading(true);
     (async () => {
       try {
-        const queue = await generateReviewQueue(activeBookId, 200, shuffleWords);
+        const queue = await generateReviewQueue(activeBookId, 200, shuffleWords, filter);
         setItems(queue);
       } catch (e) {
         console.error('[review] generate queue failed', e);
@@ -48,7 +61,7 @@ export function Review() {
         setLoading(false);
       }
     })();
-  }, [activeBookId, shuffleWords]);
+  }, [activeBookId, shuffleWords, filter]);
 
   // 键盘快捷键
   useEffect(() => {
@@ -98,6 +111,13 @@ export function Review() {
       console.error('[review] grade failed', e);
     } finally {
       setGrading(false);
+    }
+  }
+
+  function handleSkip() {
+    if (idx < items.length - 1) {
+      setIdx((i) => i + 1);
+      setFlipped(false);
     }
   }
 
@@ -167,18 +187,129 @@ export function Review() {
         <span className="text-sm text-slate-500">
           {idx + 1} / {items.length}
         </span>
-        <button
-          className="text-sm text-slate-400 hover:text-slate-600 disabled:opacity-30"
-          onClick={handleUndo}
-          disabled={!history.length || grading}
-        >
-          ↩ 撤销
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            className="text-sm text-slate-400 hover:text-slate-600"
+            onClick={() => setShowFilter((v) => !v)}
+          >
+            筛选
+          </button>
+          <button
+            className="text-sm text-slate-400 hover:text-slate-600 disabled:opacity-30"
+            onClick={handleUndo}
+            disabled={!history.length || grading}
+          >
+            ↩ 撤销
+          </button>
+        </div>
       </div>
+
+      {/* 筛选面板 */}
+      {showFilter && (
+        <div className="card-container p-4 space-y-3 animate-fadeInUp shrink-0">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">定向复习筛选</h3>
+            <button
+              className="text-xs text-slate-400 hover:text-slate-600"
+              onClick={() => { setFilter(undefined); setShowFilter(false); }}
+            >
+              清除筛选
+            </button>
+          </div>
+          {/* 首字母范围 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 w-16">首字母</span>
+            <select
+              className="input-base w-20 text-sm"
+              value={filter?.letterRange?.[0] ?? ''}
+              onChange={(e) => {
+                const start = e.target.value;
+                const end = filter?.letterRange?.[1] ?? 'Z';
+                setFilter({ ...filter, letterRange: start ? [start, end] : undefined });
+              }}
+            >
+              <option value="">全部</option>
+              {['A','E','I','M','Q','U'].map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-400">~</span>
+            <select
+              className="input-base w-20 text-sm"
+              value={filter?.letterRange?.[1] ?? ''}
+              onChange={(e) => {
+                const end = e.target.value;
+                const start = filter?.letterRange?.[0] ?? 'A';
+                setFilter({ ...filter, letterRange: end ? [start, end] : undefined });
+              }}
+            >
+              <option value="">全部</option>
+              {['D','H','L','P','T','Z'].map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </div>
+          {/* 学习状态 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 w-16">学习状态</span>
+            <select
+              className="input-base flex-1 text-sm"
+              value={filter?.state ?? ''}
+              onChange={(e) => {
+                const state = e.target.value as 'new' | 'learning' | 'mastered' | '';
+                setFilter({ ...filter, state: state || undefined });
+              }}
+            >
+              <option value="">全部</option>
+              <option value="new">新词</option>
+              <option value="learning">学习中</option>
+              <option value="mastered">已掌握</option>
+            </select>
+          </div>
+          {/* 错误次数 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 w-16">错误≥</span>
+            <select
+              className="input-base w-20 text-sm"
+              value={filter?.minLapses ?? ''}
+              onChange={(e) => {
+                const n = e.target.value ? Number(e.target.value) : undefined;
+                setFilter({ ...filter, minLapses: n });
+              }}
+            >
+              <option value="">不限</option>
+              <option value="1">1次</option>
+              <option value="3">3次</option>
+              <option value="5">5次</option>
+            </select>
+          </div>
+          {/* 上次评分 */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 w-16">上次评分</span>
+            <select
+              className="input-base flex-1 text-sm"
+              value={filter?.lastGrade ?? ''}
+              onChange={(e) => {
+                const g = e.target.value ? Number(e.target.value) : undefined;
+                setFilter({ ...filter, lastGrade: g });
+              }}
+            >
+              <option value="">全部</option>
+              <option value="0">忘记 (Again)</option>
+              <option value="1">困难 (Hard)</option>
+              <option value="2">良好 (Good)</option>
+              <option value="3">简单 (Easy)</option>
+            </select>
+          </div>
+          {filter && (
+            <p className="text-xs text-brand-500">已应用筛选，共 {items.length} 词</p>
+          )}
+        </div>
+      )}
 
       {/* 卡片区域 — flex-1 填满剩余空间 */}
       <div className="flex-1 flex items-center justify-center min-h-0 py-4">
-        <div key={current.wordId} className="w-full h-full animate-cardSlideIn">
+        <div key={current.wordId} ref={cardRef} className="w-full h-full animate-cardSlideIn">
           <FlashCard
             item={current}
             flipped={flipped}

@@ -492,3 +492,81 @@ caret-color: transparent;                /* 隐藏光标，防止浏览器自动
 .animate-fadeIn {
   animation: fadeIn 0.2s ease forwards;
 }
+
+/* ================================================================
+   卡片皮肤 / 主题 — 2.5.1
+   通过 data-card-theme 属性切换 CSS 变量
+   ================================================================ */
+
+/* 默认皮肤（不设置 data-card-theme 或设为 default） */
+:root,
+[data-card-theme="default"] {
+  --card-bg: rgb(255 255 255);
+  --card-border: rgb(226 232 240);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+.dark,
+.dark[data-card-theme="default"] {
+  --card-bg: rgb(30 41 59);
+  --card-border: rgb(51 65 85);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* 护眼绿 */
+[data-card-theme="green"] {
+  --card-bg: rgb(237 247 237);
+  --card-border: rgb(198 226 199);
+  --card-shadow: 0 10px 15px -3px rgba(34, 139, 34, 0.1), 0 4px 6px -4px rgba(34, 139, 34, 0.08);
+}
+.dark[data-card-theme="green"] {
+  --card-bg: rgb(26 44 26);
+  --card-border: rgb(45 80 45);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* 纸质羊皮卷 */
+[data-card-theme="parchment"] {
+  --card-bg: rgb(250 240 218);
+  --card-border: rgb(218 200 168);
+  --card-shadow: 0 10px 15px -3px rgba(160, 120, 60, 0.12), 0 4px 6px -4px rgba(160, 120, 60, 0.08);
+}
+.dark[data-card-theme="parchment"] {
+  --card-bg: rgb(50 40 25);
+  --card-border: rgb(90 75 50);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* 极简白 */
+[data-card-theme="minimal"] {
+  --card-bg: rgb(255 255 255);
+  --card-border: rgb(245 245 245);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.dark[data-card-theme="minimal"] {
+  --card-bg: rgb(24 24 27);
+  --card-border: rgb(39 39 42);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 午夜蓝 */
+[data-card-theme="midnight"] {
+  --card-bg: rgb(30 35 60);
+  --card-border: rgb(50 60 100);
+  --card-shadow: 0 10px 15px -3px rgba(30, 40, 80, 0.2), 0 4px 6px -4px rgba(30, 40, 80, 0.1);
+}
+.dark[data-card-theme="midnight"] {
+  --card-bg: rgb(15 18 40);
+  --card-border: rgb(40 50 90);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* 应用卡片主题变量 */
+.card-container {
+  background-color: var(--card-bg, rgb(255 255 255));
+  border-color: var(--card-border, rgb(226 232 240));
+  box-shadow: var(--card-shadow, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+}
+.dark .card-container {
+  background-color: var(--card-bg, rgb(30 41 59));
+  border-color: var(--card-border, rgb(51 65 85));
+}

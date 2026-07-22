@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWordBookStore } from '@/stores/wordBook';
-import { getBookMeta, getSentenceBands } from '@/data/wordbooks';
+import { useSettingsStore } from '@/stores/settings';
+import { getBookMeta } from '@/data/wordbooks';
 import { getTodayProgress, getBookStats, loadReviewLogs } from '@/srs/engine';
 import { sentenceApi, type SentenceStats } from '@/api/client';
 import { getSentenceSrsStats, getUnmasteredReviewCount } from '@/utils/sentenceSrs';
@@ -9,9 +10,12 @@ import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { ProgressRing } from '@/components/review/ProgressRing';
 import { daysAgoBJ, toBJDate } from '@/utils/date';
+import { clsx } from 'clsx';
 
 export function Today() {
   const activeBookId = useWordBookStore((s) => s.activeBookId);
+  const dailyNewGoal = useSettingsStore((s) => s.dailyNewGoal);
+  const dailyReviewGoal = useSettingsStore((s) => s.dailyReviewGoal);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState({ dueCount: 0, newCount: 0, finishedToday: 0 });
@@ -33,7 +37,6 @@ export function Today() {
     setLoading(true);
     try {
       if (isSentenceBook) {
-        // 句子模式：从 sentence_practice_log 获取统计
         const [sStats, srsStats] = await Promise.all([
           sentenceApi.getStats(),
           getSentenceSrsStats(activeBookId),
@@ -43,11 +46,9 @@ export function Today() {
         setStreakDays(sStats.streakDays);
         setReviewsTotal(sStats.totalPractices);
 
-        // 获取已完成但未熟知的句子数量
         const unmastered = await getUnmasteredReviewCount();
         setUnmasteredCount(unmastered);
       } else {
-        // 单词模式：从 SRS 获取统计
         const [p, s, logs] = await Promise.all([
           getTodayProgress(activeBookId),
           getBookStats(activeBookId),
@@ -57,7 +58,6 @@ export function Today() {
         setStats(s);
         setReviewsTotal(logs.length);
 
-        // 计算坚持天数
         const activityDates = new Set<string>();
         for (const log of logs) {
           try {
@@ -111,6 +111,11 @@ export function Today() {
     ? Math.round((progress.finishedToday / (totalToday + progress.finishedToday)) * 100)
     : 0;
 
+  // 每日目标进度（2.3.2）
+  const goalTotal = dailyNewGoal + dailyReviewGoal;
+  const goalProgress = Math.min(100, Math.round((progress.finishedToday / goalTotal) * 100));
+  const goalCompleted = progress.finishedToday >= goalTotal;
+
   return (
     <div className="max-w-2xl mx-auto space-y-5 md:space-y-6">
       <div className="text-center">
@@ -119,9 +124,43 @@ export function Today() {
           {new Date().toLocaleDateString('zh-CN', { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
         {bookMeta && (
-          <p className="text-sm text-brand-600 mt-1">📖 {bookMeta.title}</p>
+          <p className="text-sm text-brand-600 mt-1">{bookMeta.title}</p>
         )}
       </div>
+
+      {/* 每日目标进度条 — 2.3.2 */}
+      {!isSentenceBook && goalTotal > 0 && (
+        <div className={clsx(
+          'card-container p-4 transition',
+          goalCompleted && 'ring-2 ring-emerald-400',
+        )}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-slate-500">今日目标</span>
+            <span className="text-sm font-mono">
+              <span className={clsx('font-bold', goalCompleted ? 'text-emerald-500' : 'text-brand-600')}>
+                {progress.finishedToday}
+              </span>
+              <span className="text-slate-400"> / {goalTotal}</span>
+            </span>
+          </div>
+          <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className={clsx(
+                'h-full rounded-full transition-all shimmer-bar',
+                goalCompleted
+                  ? 'bg-emerald-500'
+                  : 'bg-gradient-to-r from-brand-500 to-purple-500',
+              )}
+              style={{ width: `${goalProgress}%` }}
+            />
+          </div>
+          {goalCompleted && (
+            <p className="text-xs text-emerald-500 mt-1.5 text-center animate-fadeIn">
+              目标已达成！
+            </p>
+          )}
+        </div>
+      )}
 
       {/* 主学习卡片 */}
       {isSentenceBook ? (
@@ -155,7 +194,7 @@ export function Today() {
                 onClick={() => navigate('/sentences?review=unmastered')}
                 className="text-orange-500 ring-2 ring-orange-300 dark:ring-orange-700"
               >
-                🔄 复习 {unmasteredCount}
+                复习 {unmasteredCount}
               </Button>
             )}
           </div>
@@ -189,7 +228,7 @@ export function Today() {
               disabled={totalToday === 0 && progress.finishedToday > 0}
             >
               {totalToday === 0 && progress.finishedToday > 0
-                ? '今日已完成 🎉'
+                ? '今日已完成'
                 : progress.finishedToday > 0
                   ? '继续学习'
                   : '开始学习'}
@@ -199,9 +238,30 @@ export function Today() {
               size="lg"
               onClick={() => navigate('/dictation')}
             >
-              📝 听写
+              听写
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* 练习模式快捷入口 */}
+      {!isSentenceBook && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
+          {[
+            { to: '/quiz', label: '选择', color: 'text-emerald-600 dark:text-emerald-400' },
+            { to: '/translate', label: '互译', color: 'text-amber-600 dark:text-amber-400' },
+            { to: '/match', label: '配对', color: 'text-purple-600 dark:text-purple-400' },
+          ].map((mode) => (
+            <button
+              key={mode.to}
+              onClick={() => navigate(mode.to)}
+              className="card-container p-3 md:p-4 text-center card-hover-lift animate-stagger"
+            >
+              <p className={clsx('text-base md:text-lg font-bold', mode.color)}>
+                {mode.label}
+              </p>
+            </button>
+          ))}
         </div>
       )}
 

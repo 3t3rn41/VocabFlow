@@ -304,6 +304,9 @@ export interface RemoteSettings {
   srsRetention?: number;
   keyboardLayout?: string;
   shuffleWords?: boolean;
+  cardTheme?: string;
+  dailyNewGoal?: number;
+  dailyReviewGoal?: number;
 }
 
 export const userApi = {

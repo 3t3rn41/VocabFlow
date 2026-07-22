@@ -1,6 +1,7 @@
 import { PronunciationButton } from '@/components/word/PronunciationButton';
 import { useSettingsStore } from '@/stores/settings';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useWordBookStore } from '@/stores/wordBook';
 import type { ReviewItem } from '@/types';
 
 interface FlashCardProps {
@@ -16,15 +17,23 @@ interface FlashCardProps {
 export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
   const autoPlayAudio = useSettingsStore((s) => s.autoPlayAudio);
   const isMobile = useIsMobile();
+  const activeBookId = useWordBookStore((s) => s.activeBookId);
 
   // 将释义按空格分割为多个含义
   const meanings = item.meaning_cn.split(/\s+/).filter(Boolean);
+
+  // 构建助记图路径
+  const mnemonicBookId = item.bookId || activeBookId || '';
+  const mnemonicWord = item.word.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_()-]/g, '').replace(/[()/]/g, '');
+  const mnemonicImgSrc = mnemonicBookId && mnemonicWord
+    ? `/images/word_mnemonics/${mnemonicBookId}/${mnemonicWord}.webp`
+    : '';
 
   return (
     <div className="flex justify-center w-full h-full">
       <div
         onClick={onFlip}
-        className={`flash-card w-full h-full max-h-[460px] cursor-pointer select-none relative ${flipped ? 'flipped' : ''}`}
+        className={`flash-card w-full h-full max-h-[560px] cursor-pointer select-none relative ${flipped ? 'flipped' : ''}`}
         style={{ perspective: '1200px' }}
       >
         {/* 正面 */}
@@ -58,7 +67,7 @@ export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
             {meanings.length > 0 && (
               <div className="space-y-1">
                 <p className="text-xs text-slate-400 font-medium">
-                  {item.pos ? `📖 ${item.pos}` : '📖 释义'}
+                  {item.pos ? item.pos : '释义'}
                 </p>
                 {meanings.map((m, i) => (
                   <p key={i} className="text-base text-slate-700 dark:text-slate-200 pl-1">
@@ -76,6 +85,19 @@ export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
                 {item.example_cn && (
                   <p className="text-xs text-slate-500 mt-1">{item.example_cn}</p>
                 )}
+              </div>
+            )}
+
+            {/* 助记图 */}
+            {mnemonicImgSrc && (
+              <div className="flex justify-center pt-1">
+                <img
+                  src={mnemonicImgSrc}
+                  alt="助记图"
+                  className="max-w-[180px] md:max-w-[200px] rounded-lg shadow-sm object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  loading="lazy"
+                />
               </div>
             )}
           </div>

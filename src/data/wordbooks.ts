@@ -2,13 +2,15 @@
  * 数据层 — 从本地 JSON 文件加载词书和句子数据
  *
  * 数据来源:
- *   - gaokao_words.json               高考词汇 (简单 word→meaning 格式)
+ *   - gaokao_words.json               高考词汇
  *   - CET4_words.json                 四级词汇
  *   - CET6_words.json                 六级词汇
  *   - zhongkao_words.json             中考词汇
- *   - IELTS_words.json                雅思核心词汇 (含音标/词性/例句)
+ *   - IELTS_words.json                雅思核心词汇
  *   - IELTS_sentences.json            雅思日常对话
  *   - language_sense_sentences.json   英语语感分级练习 (初中/高中/大学)
+ *
+ * 所有单词词书统一格式：{ meta, words: [{ word, phonetic, pos, meaning_cn, example, example_cn }] }
  */
 
 import type {
@@ -31,9 +33,7 @@ import languageSenseData from './wordbooks/language_sense_sentences.json';
 /* 类型断言                                                            */
 /* ------------------------------------------------------------------ */
 
-type SimpleWordData = Record<string, string>;
-
-interface IELTSWordRaw {
+interface WordRaw {
   word: string;
   phonetic: string;
   pos: string;
@@ -42,9 +42,9 @@ interface IELTSWordRaw {
   example_cn: string;
 }
 
-interface IELTSWordsFile {
+interface WordsFile {
   meta: { description: string; target_band: string; fields: string };
-  words: IELTSWordRaw[];
+  words: WordRaw[];
 }
 
 interface IELTSSentencesFile {
@@ -67,11 +67,11 @@ interface LanguageSenseSentencesFile {
   };
 }
 
-const gaokao = gaokaoWords as SimpleWordData;
-const cet4 = cet4Words as SimpleWordData;
-const cet6 = cet6Words as SimpleWordData;
-const zhongkao = zhongkaoWords as SimpleWordData;
-const ieltsWords = ieltsWordsData as IELTSWordsFile;
+const zhongkao = zhongkaoWords as WordsFile;
+const gaokao = gaokaoWords as WordsFile;
+const cet4 = cet4Words as WordsFile;
+const cet6 = cet6Words as WordsFile;
+const ieltsWords = ieltsWordsData as WordsFile;
 const ieltsSentences = ieltsSentencesData as IELTSSentencesFile;
 const languageSense = languageSenseData as LanguageSenseSentencesFile;
 
@@ -99,30 +99,30 @@ export const WORD_BOOKS: WordBookMeta[] = [
   {
     id: 'zhongkao',
     title: '中考核心词汇',
-    description: '中考英语核心必背词汇',
+    description: zhongkao.meta.description,
     kind: 'word',
-    total: Object.keys(zhongkao).length,
+    total: zhongkao.words.length,
   },
   {
     id: 'gaokao',
     title: '高考核心词汇',
-    description: '高考英语核心必背词汇',
+    description: gaokao.meta.description,
     kind: 'word',
-    total: Object.keys(gaokao).length,
+    total: gaokao.words.length,
   },
   {
     id: 'cet4',
     title: '四级核心词汇',
-    description: '大学英语四级核心必背词汇',
+    description: cet4.meta.description,
     kind: 'word',
-    total: Object.keys(cet4).length,
+    total: cet4.words.length,
   },
   {
     id: 'cet6',
     title: '六级核心词汇',
-    description: '大学英语六级核心必背词汇',
+    description: cet6.meta.description,
     kind: 'word',
-    total: Object.keys(cet6).length,
+    total: cet6.words.length,
   },
   {
     id: 'ielts',
@@ -151,42 +151,34 @@ export const WORD_BOOKS: WordBookMeta[] = [
 /* 单词数据访问                                                        */
 /* ------------------------------------------------------------------ */
 
+/** 词书 ID → WordsFile 映射 */
+const WORD_DATA: Record<string, WordsFile> = {
+  zhongkao,
+  gaokao,
+  cet4,
+  cet6,
+  ielts: ieltsWords,
+};
+
 /** 获取某词书的全部单词（惰性构建，首次调用后缓存） */
 const _wordCache = new Map<string, WordEntry[]>();
-
-/** 简单 word→meaning 格式的词书构建 */
-function buildSimpleWordEntries(bookId: string, data: SimpleWordData): WordEntry[] {
-  return Object.entries(data).map(([word, meaning]) => ({
-    id: `${bookId}:${word}`,
-    word,
-    meaning_cn: meaning,
-    bookId,
-  }));
-}
 
 export function getWordsByBook(bookId: string): WordEntry[] {
   if (_wordCache.has(bookId)) return _wordCache.get(bookId)!;
 
+  const data = WORD_DATA[bookId];
   let entries: WordEntry[] = [];
 
-  if (bookId === 'gaokao') {
-    entries = buildSimpleWordEntries('gaokao', gaokao);
-  } else if (bookId === 'cet4') {
-    entries = buildSimpleWordEntries('cet4', cet4);
-  } else if (bookId === 'cet6') {
-    entries = buildSimpleWordEntries('cet6', cet6);
-  } else if (bookId === 'zhongkao') {
-    entries = buildSimpleWordEntries('zhongkao', zhongkao);
-  } else if (bookId === 'ielts') {
-    entries = ieltsWords.words.map((w) => ({
-      id: `ielts:${w.word}`,
+  if (data) {
+    entries = data.words.map((w) => ({
+      id: `${bookId}:${w.word}`,
       word: w.word,
       meaning_cn: w.meaning_cn,
-      phonetic: w.phonetic,
-      pos: w.pos,
-      example: w.example,
-      example_cn: w.example_cn,
-      bookId: 'ielts',
+      phonetic: w.phonetic || undefined,
+      pos: w.pos || undefined,
+      example: w.example || undefined,
+      example_cn: w.example_cn || undefined,
+      bookId,
     }));
   }
 
@@ -204,16 +196,37 @@ export function getWordById(wordId: string): WordEntry | null {
 
 /** 搜索单词（在指定词书内） */
 export function searchWords(bookId: string, query: string, limit = 50): WordEntry[] {
-  const words = getWordsByBook(bookId);
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-  return words
-    .filter(
-      (w) =>
-        w.word.toLowerCase().startsWith(q) ||
-        w.meaning_cn.includes(query.trim()),
-    )
-    .slice(0, limit);
+const words = getWordsByBook(bookId);
+const q = query.trim().toLowerCase();
+if (!q) return [];
+return words
+.filter(
+(w) =>
+w.word.toLowerCase().startsWith(q) ||
+w.meaning_cn.includes(query.trim()),
+)
+.slice(0, limit);
+}
+
+/** 跨词书搜索（在所有单词类型词书中搜索） */
+export function searchAllWords(query: string, limit = 100): WordEntry[] {
+const q = query.trim().toLowerCase();
+if (!q) return [];
+const results: WordEntry[] = [];
+for (const book of WORD_BOOKS) {
+if (book.kind !== 'word') continue;
+const words = getWordsByBook(book.id);
+for (const w of words) {
+if (
+w.word.toLowerCase().startsWith(q) ||
+w.meaning_cn.includes(query.trim())
+) {
+results.push(w);
+if (results.length >= limit) return results;
+}
+}
+}
+return results;
 }
 
 /* ------------------------------------------------------------------ */

@@ -209,7 +209,7 @@ export function PronunciationResultPanel({
       {/* 逐词对比 */}
       <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30">
         <p className="text-xs text-slate-400 mb-3 font-medium">
-          📖 逐词对比
+          逐词对比
           <span className="ml-2 text-slate-300 dark:text-slate-500">（绿色=正确 · 橙色=近似 · 红色=遗漏 · 灰色=多余）</span>
         </p>
         <div className="flex flex-wrap items-start">
@@ -226,7 +226,7 @@ export function PronunciationResultPanel({
             onClick={onRetry}
             className="px-4 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition active:scale-95"
           >
-            🔄 再试一次
+            再试一次
           </button>
           <button
             onClick={onAccept}

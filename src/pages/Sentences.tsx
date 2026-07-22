@@ -510,7 +510,9 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
 
       // SRS 评分（将熟练度映射为 Grade 并持久化）
       const grade = proficiencyToGrade(proficiency);
-      reviewSentence(activeBookId, { band: selectedBand.band, topicIdx, dialogueIdx }, grade).catch(() => {});
+      if (activeBookId) {
+        reviewSentence(activeBookId, { band: selectedBand.band, topicIdx, dialogueIdx }, grade).catch(() => {});
+      }
 
       // 如果熟练度足够高，自动标记熟知
       if (shouldAutoMarkMastery(proficiency)) {
@@ -951,9 +953,24 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
 
           {/* 中文句子 */}
           <div className="text-center space-y-2 mb-4 md:mb-6">
-            <p className="text-xs text-slate-400 font-medium">🇨🇳 中文</p>
+            
             <p className="text-xl md:text-2xl font-medium">{currentDialogue.cn}</p>
           </div>
+
+          {/* 助记图（仅 IELTS 句子书） */}
+          {activeBookId === 'ielts-sentences' && selectedBand && (
+            <div className="my-6 flex justify-center">
+              <img
+                src={`/images/sentence_mnemonics/ielts/band_${selectedBand.band}/${String(topicIdx).padStart(3, '0')}_${String(dialogueIdx).padStart(3, '0')}.webp`}
+                alt="助记图"
+                className="max-w-xs md:max-w-md rounded-xl shadow-lg object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+                loading="lazy"
+              />
+            </div>
+          )}
 
           {/* 分隔线 */}
           <div className="border-t border-slate-200 dark:border-slate-700 pt-4 md:pt-6" />

@@ -1,7 +1,9 @@
-/** 应用配置 (通过后端 API 持久化) */
+/** 应用配置 (通过数据层持久化：完整版用后端 API，静态版用 localStorage) */
 
 import { create } from 'zustand';
 import { userApi, type RemoteSettings } from '@/api/client';
+
+export type CardTheme = 'default' | 'green' | 'parchment' | 'minimal' | 'midnight';
 
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
@@ -12,6 +14,11 @@ export interface AppSettings {
   // 学习提醒 (localStorage 持久化，不同步到后端)
   reminderEnabled: boolean;
   reminderTime: string;       // HH:MM 格式
+  // 卡片皮肤 (2.5.1)
+  cardTheme: CardTheme;
+  // 学习计划与目标 (2.3.2)
+  dailyNewGoal: number;       // 每日新词目标
+  dailyReviewGoal: number;    // 每日复习目标
 }
 
 const DEFAULTS: AppSettings = {
@@ -22,11 +29,14 @@ const DEFAULTS: AppSettings = {
   shuffleWords: false,
   reminderEnabled: false,
   reminderTime: '20:00',
+  cardTheme: 'default',
+  dailyNewGoal: 30,
+  dailyReviewGoal: 50,
 };
 
 interface SettingsState extends AppSettings {
   loading: boolean;
-  /** 从后端加载设置 */
+  /** 从数据层加载设置 */
   init: () => Promise<void>;
   patch: (p: Partial<AppSettings>) => void;
 }
@@ -49,6 +59,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         shuffleWords: remote.shuffleWords ?? DEFAULTS.shuffleWords,
         reminderEnabled: localReminderEnabled,
         reminderTime: localReminderTime,
+        cardTheme: (remote.cardTheme as CardTheme) ?? DEFAULTS.cardTheme,
+        dailyNewGoal: remote.dailyNewGoal ?? DEFAULTS.dailyNewGoal,
+        dailyReviewGoal: remote.dailyReviewGoal ?? DEFAULTS.dailyReviewGoal,
       };
       set({ ...merged, loading: false });
     } catch (e) {
@@ -66,7 +79,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (p.reminderTime !== undefined) {
       localStorage.setItem('vf_reminder_time', p.reminderTime);
     }
-    // 异步保存到后端（不阻塞 UI）
+    // 卡片皮肤应用到 DOM
+    if (p.cardTheme !== undefined) {
+      applyCardTheme(p.cardTheme);
+    }
+    // 异步保存到数据层（不阻塞 UI）
     const current = { ...get() };
     const remote: RemoteSettings = {
       theme: current.theme,
@@ -74,9 +91,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       srsRetention: current.srsRetention,
       keyboardLayout: current.keyboardLayout,
       shuffleWords: current.shuffleWords,
+      cardTheme: current.cardTheme,
+      dailyNewGoal: current.dailyNewGoal,
+      dailyReviewGoal: current.dailyReviewGoal,
     };
     userApi.saveSettings(remote).catch((e) => {
       console.error('[settings] save failed', e);
     });
   },
 }));
+
+/* ------------------------------------------------------------------ */
+/* 卡片皮肤：通过 data-attribute 控制 CSS 变量                          */
+/* ------------------------------------------------------------------ */
+
+export function applyCardTheme(theme: CardTheme): void {
+  document.documentElement.setAttribute('data-card-theme', theme);
+}

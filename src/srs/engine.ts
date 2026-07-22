@@ -62,6 +62,18 @@ export async function loadReviewLogs(): Promise<ReviewLog[]> {
 /* 工具函数                                                            */
 /* ------------------------------------------------------------------ */
 
+/** 定向复习筛选条件 */
+export interface ReviewFilter {
+  /** 首字母范围，如 ['A', 'D'] */
+  letterRange?: [string, string];
+  /** 学习状态 */
+  state?: 'new' | 'learning' | 'mastered';
+  /** 最小错误次数 */
+  minLapses?: number;
+  /** 上次评分筛选（仅复习该评分的词） */
+  lastGrade?: number;
+}
+
 /** Fisher-Yates 洗牌算法 */
 function shuffleArray<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -88,6 +100,7 @@ export async function generateReviewQueue(
   bookId: string,
   reviewLimit: number = 200,
   shuffle: boolean = false,
+  filter?: ReviewFilter,
 ): Promise<ReviewItem[]> {
   const words = getWordsByBook(bookId);
   if (!words.length) return [];
@@ -95,10 +108,37 @@ export async function generateReviewQueue(
   const allCards = await loadAllCards();
   const now = new Date();
 
+  // 应用筛选条件
+  const filteredWords = words.filter((w) => {
+    if (!filter) return true;
+    // 首字母范围
+    if (filter.letterRange) {
+      const [start, end] = filter.letterRange;
+      const first = w.word.charAt(0).toUpperCase();
+      if (first < start.toUpperCase() || first > end.toUpperCase()) return false;
+    }
+    const card = allCards[w.id];
+    // 学习状态
+    if (filter.state) {
+      if (filter.state === 'new' && card) return false;
+      if (filter.state === 'learning' && (!card || card.state !== 1)) return false;
+      if (filter.state === 'mastered' && (!card || card.state < 2)) return false;
+    }
+    // 最小错误次数
+    if (filter.minLapses !== undefined) {
+      if (!card || card.lapses < filter.minLapses) return false;
+    }
+    // 上次评分
+    if (filter.lastGrade !== undefined) {
+      if (!card || card.lastGrade !== filter.lastGrade) return false;
+    }
+    return true;
+  });
+
   const dueItems: ReviewItem[] = [];
   const newItems: ReviewItem[] = [];
 
-  for (const w of words) {
+  for (const w of filteredWords) {
     const card = allCards[w.id];
     if (card) {
       const dueDate = new Date(card.due);

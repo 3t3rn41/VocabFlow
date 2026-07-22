@@ -1,4 +1,4 @@
-/** 当前选中的词书 (通过后端 API 持久化) */
+/** 当前选中的词书 (通过数据层持久化) */
 
 import { create } from 'zustand';
 import { userApi } from '@/api/client';
@@ -7,7 +7,7 @@ interface WordBookState {
   activeBookId: string | null;
   hasSelectedBook: boolean;
   loading: boolean;
-  /** 从后端加载活跃词书 */
+  /** 从数据层加载活跃词书 */
   init: () => Promise<void>;
   setBook: (bookId: string) => Promise<void>;
   clear: () => Promise<void>;
