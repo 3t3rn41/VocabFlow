@@ -36,7 +36,7 @@ sentenceRouter.get('/progress', requireAuth, async (req, res) => {
   }
 });
 
-/** 标记句子完成 (INSERT IGNORE 防重复) */
+/** 标记句子完成 (INSERT OR IGNORE 防重复) */
 sentenceRouter.post('/complete', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.userId;
@@ -47,7 +47,7 @@ sentenceRouter.post('/complete', requireAuth, async (req, res) => {
     };
 
     await execute(
-      `INSERT IGNORE INTO sentence_progress (user_id, band, topic_idx, dialogue_idx) VALUES (?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO sentence_progress (user_id, band, topic_idx, dialogue_idx) VALUES (?, ?, ?, ?)`,
       [userId, band, topicIdx, dialogueIdx],
     );
 
@@ -166,9 +166,8 @@ sentenceRouter.post('/position', requireAuth, async (req, res) => {
     };
 
     await execute(
-      `INSERT INTO sentence_position (user_id, band, topic_idx, dialogue_idx)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE band = VALUES(band), topic_idx = VALUES(topic_idx), dialogue_idx = VALUES(dialogue_idx)`,
+      `INSERT OR REPLACE INTO sentence_position (user_id, band, topic_idx, dialogue_idx)
+       VALUES (?, ?, ?, ?)`,
       [userId, band, topicIdx, dialogueIdx],
     );
 
@@ -248,14 +247,8 @@ sentenceRouter.post('/mastery', requireAuth, async (req, res) => {
     };
 
     await execute(
-      `INSERT INTO sentence_mastery (user_id, band, topic_idx, dialogue_idx, source, proficiency, pause_ms, tab_count, typo_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         source = VALUES(source),
-         proficiency = VALUES(proficiency),
-         pause_ms = VALUES(pause_ms),
-         tab_count = VALUES(tab_count),
-         typo_count = VALUES(typo_count)`,
+      `INSERT OR REPLACE INTO sentence_mastery (user_id, band, topic_idx, dialogue_idx, source, proficiency, pause_ms, tab_count, typo_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         band,

@@ -166,12 +166,41 @@ export function Settings() {
   const { activeBookId, setBook } = useWordBookStore();
   const pushToast = useUiStore((s) => s.pushToast);
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, changePassword } = useAuthStore();
   const isMobile = useIsMobile();
 
   const bookMeta = activeBookId ? getBookMeta(activeBookId) : null;
 
   const [showBookSwitcher, setShowBookSwitcher] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' });
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  async function handleChangePassword() {
+    if (!passwordForm.current || !passwordForm.next) {
+      pushToast('请填写当前密码和新密码', 'error');
+      return;
+    }
+    if (passwordForm.next !== passwordForm.confirm) {
+      pushToast('两次输入的新密码不一致', 'error');
+      return;
+    }
+    if (passwordForm.next.length < 6) {
+      pushToast('新密码长度不能少于 6 位', 'error');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await changePassword(passwordForm.current, passwordForm.next);
+      pushToast('密码修改成功', 'success');
+      setShowChangePassword(false);
+      setPasswordForm({ current: '', next: '', confirm: '' });
+    } catch (e) {
+      pushToast(`密码修改失败: ${(e as Error).message}`, 'error');
+    } finally {
+      setChangingPassword(false);
+    }
+  }
 
   function handleRetentionChange(value: number) {
     settings.patch({ srsRetention: value });
@@ -212,10 +241,63 @@ export function Settings() {
               <p className="text-xs text-slate-400">已登录</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            退出登录
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowChangePassword((v) => !v)}>
+              修改密码
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              退出登录
+            </Button>
+          </div>
         </div>
+        {showChangePassword && (
+          <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700 animate-fadeInUp">
+            <input
+              type="password"
+              placeholder="当前密码"
+              value={passwordForm.current}
+              onChange={(e) => setPasswordForm((f) => ({ ...f, current: e.target.value }))}
+              className="input-base w-full"
+              autoComplete="current-password"
+            />
+            <input
+              type="password"
+              placeholder="新密码 (至少6位)"
+              value={passwordForm.next}
+              onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))}
+              className="input-base w-full"
+              autoComplete="new-password"
+            />
+            <input
+              type="password"
+              placeholder="确认新密码"
+              value={passwordForm.confirm}
+              onChange={(e) => setPasswordForm((f) => ({ ...f, confirm: e.target.value }))}
+              className="input-base w-full"
+              autoComplete="new-password"
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleChangePassword}
+                disabled={changingPassword}
+              >
+                {changingPassword ? '提交中...' : '确认修改'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowChangePassword(false);
+                  setPasswordForm({ current: '', next: '', confirm: '' });
+                }}
+              >
+                取消
+              </Button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* 当前词书 */}

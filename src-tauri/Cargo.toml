@@ -1,0 +1,22 @@
+[package]
+name = "vocabflow-desktop"
+version = "1.0.0"
+description = "涓词 VocabFlow — 基于 FSRS 的词汇学习桌面应用"
+authors = ["VocabFlow"]
+edition = "2021"
+
+[lib]
+name = "vocabflow_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

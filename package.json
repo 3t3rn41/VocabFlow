@@ -8,10 +8,12 @@
     "server": "cd server && npm run dev",
     "dev:all": "concurrently -n web,api -c blue,green \"vite\" \"cd server && npm run dev\"",
     "build": "tsc -b && vite build",
+    "build:desktop": "npm run build && cd server && npm run build:bundle && Copy-Item node_modules/sql.js/dist/sql-wasm.wasm dist/sql-wasm.wasm -Force",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "tauri": "tauri"
   },
   "dependencies": {
     "clsx": "^2.1.1",

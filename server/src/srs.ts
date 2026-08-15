@@ -51,8 +51,8 @@ export interface ReviewLog {
 
 /* ------------------------------------------------------------------ */
 
-/** 将 ISO 字符串或 Date 转换为 MySQL DATETIME 格式 (YYYY-MM-DD HH:MM:SS) */
-function toMySQLDateTime(iso: string | Date): string {
+/** 将 ISO 字符串或 Date 转换为 SQLite DATETIME 格式 (YYYY-MM-DD HH:MM:SS) */
+function toSqliteDateTime(iso: string | Date): string {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
@@ -163,22 +163,11 @@ function gradeToRating(grade: number): Rating {
   return (grade + 1) as Rating;
 }
 
-/** UPSERT 卡片到 MySQL (含 user_id) */
+/** UPSERT 卡片到 SQLite (含 user_id) */
 async function upsertCard(userId: number, card: StoredCard): Promise<void> {
   await execute(
-    `INSERT INTO srs_cards (user_id, word_id, book_id, stability, difficulty, elapsed_days, state, due, reps, lapses, last_grade, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-       book_id = VALUES(book_id),
-       stability = VALUES(stability),
-       difficulty = VALUES(difficulty),
-       elapsed_days = VALUES(elapsed_days),
-       state = VALUES(state),
-       due = VALUES(due),
-       reps = VALUES(reps),
-       lapses = VALUES(lapses),
-       last_grade = VALUES(last_grade),
-       updated_at = VALUES(updated_at)`,
+    `INSERT OR REPLACE INTO srs_cards (user_id, word_id, book_id, stability, difficulty, elapsed_days, state, due, reps, lapses, last_grade, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       userId,
       card.wordId,
@@ -187,11 +176,11 @@ async function upsertCard(userId: number, card: StoredCard): Promise<void> {
       card.difficulty,
       card.elapsedDays,
       card.state,
-      toMySQLDateTime(card.due),
+      toSqliteDateTime(card.due),
       card.reps,
       card.lapses,
       card.lastGrade,
-      toMySQLDateTime(card.updatedAt),
+      toSqliteDateTime(card.updatedAt),
     ],
   );
 }
@@ -217,7 +206,7 @@ export async function reviewAndPersist(
   // 记录日志
   await execute(
     `INSERT INTO review_logs (user_id, word_id, book_id, reviewed_at, grade) VALUES (?, ?, ?, ?, ?)`,
-    [userId, wordId, bookId, toMySQLDateTime(new Date()), grade],
+    [userId, wordId, bookId, toSqliteDateTime(new Date()), grade],
   );
 
   return stored;
@@ -252,15 +241,14 @@ export async function undoReview(userId: number, wordId: string): Promise<void> 
   card.updatedAt = new Date().toISOString();
   await upsertCard(userId, card);
 
-  // 删除最后一条该词的日志
-  await execute(
-    `DELETE FROM review_logs WHERE id = (
-       SELECT id FROM (
-         SELECT id FROM review_logs WHERE user_id = ? AND word_id = ? ORDER BY reviewed_at DESC LIMIT 1
-       ) AS t
-     )`,
+  // 删除最后一条该词的日志 (sql.js 对嵌套子查询支持有限，改为两步操作)
+  const logRows = await query<{ id: number }>(
+    'SELECT id FROM review_logs WHERE user_id = ? AND word_id = ? ORDER BY reviewed_at DESC LIMIT 1',
     [userId, wordId],
   );
+  if (logRows.length > 0) {
+    await execute('DELETE FROM review_logs WHERE id = ?', [logRows[0].id]);
+  }
 }
 
 /** 清除用户的所有 SRS 数据 */
@@ -280,7 +268,7 @@ export async function getBookStats(userId: number, bookId: string): Promise<{
     [userId, bookId],
   );
   const dueRows = await query<{ cnt: number }>(
-    'SELECT COUNT(*) AS cnt FROM srs_cards WHERE user_id = ? AND book_id = ? AND due <= UTC_TIMESTAMP()',
+    "SELECT COUNT(*) AS cnt FROM srs_cards WHERE user_id = ? AND book_id = ? AND due <= datetime('now')",
     [userId, bookId],
   );
 
@@ -299,12 +287,12 @@ export async function getTodayProgress(
   newLimit: number = 20,
 ): Promise<{ dueCount: number; newCount: number; finishedToday: number }> {
   const dueRows = await query<{ cnt: number }>(
-    'SELECT COUNT(*) AS cnt FROM srs_cards WHERE user_id = ? AND book_id = ? AND due <= UTC_TIMESTAMP()',
+    "SELECT COUNT(*) AS cnt FROM srs_cards WHERE user_id = ? AND book_id = ? AND due <= datetime('now')",
     [userId, bookId],
   );
   const todayRows = await query<{ cnt: number }>(
     `SELECT COUNT(*) AS cnt FROM review_logs
-     WHERE user_id = ? AND book_id = ? AND DATE(reviewed_at) = UTC_DATE()`,
+     WHERE user_id = ? AND book_id = ? AND DATE(reviewed_at) = date('now')`,
     [userId, bookId],
   );
 

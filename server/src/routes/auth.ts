@@ -115,3 +115,53 @@ authRouter.get('/me', requireAuth, (req, res) => {
     },
   });
 });
+
+/** 修改密码 */
+authRouter.post('/change-password', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: '当前密码和新密码不能为空' });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: '新密码长度不能少于 6 位' });
+      return;
+    }
+
+    const rows = await query<UserRow>(
+      'SELECT id, username, password_hash FROM users WHERE id = ?',
+      [userId],
+    );
+
+    if (rows.length === 0) {
+      res.status(404).json({ error: '用户不存在' });
+      return;
+    }
+
+    const user = rows[0];
+    const match = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!match) {
+      res.status(401).json({ error: '当前密码错误' });
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      res.status(400).json({ error: '新密码不能与当前密码相同' });
+      return;
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await execute(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [newHash, userId],
+    );
+
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});

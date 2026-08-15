@@ -21,6 +21,9 @@ interface SettingsRow {
   keyboard_layout: string;
   daily_new_limit: number;
   shuffle_words: number;
+  card_theme: string;
+  daily_new_goal: number;
+  daily_review_goal: number;
 }
 
 /** 加载设置 */
@@ -28,7 +31,7 @@ userRouter.get('/settings', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const rows = await query<SettingsRow>(
-      'SELECT theme, auto_play_audio, srs_retention, keyboard_layout, daily_new_limit, shuffle_words FROM user_settings WHERE user_id = ?',
+      'SELECT theme, auto_play_audio, srs_retention, keyboard_layout, daily_new_limit, shuffle_words, card_theme, daily_new_goal, daily_review_goal FROM user_settings WHERE user_id = ?',
       [userId],
     );
     if (!rows.length) {
@@ -40,6 +43,9 @@ userRouter.get('/settings', requireAuth, async (req, res) => {
         keyboardLayout: '3key',
         dailyNewLimit: 20,
         shuffleWords: false,
+        cardTheme: 'default',
+        dailyNewGoal: 30,
+        dailyReviewGoal: 50,
       });
       return;
     }
@@ -51,6 +57,9 @@ userRouter.get('/settings', requireAuth, async (req, res) => {
       keyboardLayout: r.keyboard_layout,
       dailyNewLimit: r.daily_new_limit,
       shuffleWords: !!r.shuffle_words,
+      cardTheme: r.card_theme,
+      dailyNewGoal: r.daily_new_goal,
+      dailyReviewGoal: r.daily_review_goal,
     });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -68,6 +77,9 @@ userRouter.put('/settings', requireAuth, async (req, res) => {
       keyboardLayout,
       dailyNewLimit,
       shuffleWords,
+      cardTheme,
+      dailyNewGoal,
+      dailyReviewGoal,
     } = req.body as {
       theme?: string;
       autoPlayAudio?: boolean;
@@ -75,19 +87,15 @@ userRouter.put('/settings', requireAuth, async (req, res) => {
       keyboardLayout?: string;
       dailyNewLimit?: number;
       shuffleWords?: boolean;
+      cardTheme?: string;
+      dailyNewGoal?: number;
+      dailyReviewGoal?: number;
     };
 
-    // UPSERT: 如果没有记录就 INSERT，否则 UPDATE
+    // UPSERT: 使用 INSERT OR REPLACE INTO
     await execute(
-      `INSERT INTO user_settings (user_id, theme, auto_play_audio, srs_retention, keyboard_layout, daily_new_limit, shuffle_words)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         theme = VALUES(theme),
-         auto_play_audio = VALUES(auto_play_audio),
-         srs_retention = VALUES(srs_retention),
-         keyboard_layout = VALUES(keyboard_layout),
-         daily_new_limit = VALUES(daily_new_limit),
-         shuffle_words = VALUES(shuffle_words)`,
+      `INSERT OR REPLACE INTO user_settings (user_id, theme, auto_play_audio, srs_retention, keyboard_layout, daily_new_limit, shuffle_words, card_theme, daily_new_goal, daily_review_goal)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         theme ?? 'system',
@@ -96,6 +104,9 @@ userRouter.put('/settings', requireAuth, async (req, res) => {
         keyboardLayout ?? '3key',
         dailyNewLimit ?? 20,
         shuffleWords ? 1 : 0,
+        cardTheme ?? 'default',
+        dailyNewGoal ?? 30,
+        dailyReviewGoal ?? 50,
       ],
     );
 
@@ -133,9 +144,8 @@ userRouter.put('/active-book', requireAuth, async (req, res) => {
     const userId = req.user!.userId;
     const { bookId } = req.body as { bookId: string };
     await execute(
-      `INSERT INTO active_book (user_id, book_id)
-       VALUES (?, ?)
-       ON DUPLICATE KEY UPDATE book_id = VALUES(book_id)`,
+      `INSERT OR REPLACE INTO active_book (user_id, book_id)
+       VALUES (?, ?)`,
       [userId, bookId],
     );
     res.json({ ok: true });
