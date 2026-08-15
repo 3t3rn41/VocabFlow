@@ -139,6 +139,10 @@ export const authApi = {
 
   /** 获取当前用户信息 */
   me: () => apiGet<{ user: AuthUser }>('/auth/me'),
+
+  /** 修改密码 */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiPost<{ ok: boolean }>('/auth/change-password', { currentPassword, newPassword }),
 };
 
 /* ------------------------------------------------------------------ */

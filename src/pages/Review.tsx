@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FlashCard } from '@/components/review/FlashCard';
 import { GradeButtons } from '@/components/review/GradeButtons';
 import { ReviewComplete } from '@/components/review/ReviewComplete';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { generateReviewQueue, reviewAndPersist, undoReview } from '@/srs/engine';
 import type { ReviewFilter } from '@/srs/engine';
+import { getFavorites } from '@/pages/Favorites';
 import { clsx } from 'clsx';
 
 export function Review() {
@@ -19,6 +20,8 @@ export function Review() {
   const keyboardLayout = useSettingsStore((s) => s.keyboardLayout);
   const shuffleWords = useSettingsStore((s) => s.shuffleWords);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isFavoritesMode = searchParams.get('favorites') === 'true';
 
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [idx, setIdx] = useState(0);
@@ -41,7 +44,7 @@ export function Review() {
 
   // 生成复习队列
   useEffect(() => {
-    if (!activeBookId) {
+    if (!isFavoritesMode && !activeBookId) {
       setLoading(false);
       return;
     }
@@ -53,15 +56,28 @@ export function Review() {
     setLoading(true);
     (async () => {
       try {
-        const queue = await generateReviewQueue(activeBookId, 200, shuffleWords, filter);
-        setItems(queue);
+        if (isFavoritesMode) {
+          // 生词本复习模式：从 localStorage 加载收藏列表
+          const favorites = getFavorites();
+          const queue: ReviewItem[] = favorites.map((f) => ({
+            wordId: f.wordId,
+            word: f.word,
+            meaning_cn: f.meaning_cn,
+            bookId: f.bookId,
+            isNew: false,
+          }));
+          setItems(queue);
+        } else {
+          const queue = await generateReviewQueue(activeBookId!, 200, shuffleWords, filter);
+          setItems(queue);
+        }
       } catch (e) {
         console.error('[review] generate queue failed', e);
       } finally {
         setLoading(false);
       }
     })();
-  }, [activeBookId, shuffleWords, filter]);
+  }, [activeBookId, shuffleWords, filter, isFavoritesMode]);
 
   // 键盘快捷键
   useEffect(() => {

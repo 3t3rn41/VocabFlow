@@ -19,6 +19,7 @@ interface AuthState {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => {
@@ -62,6 +63,10 @@ export const useAuthStore = create<AuthState>((set) => {
     logout: () => {
       clearToken();
       set({ user: null, isAuthenticated: false });
+    },
+
+    changePassword: async (currentPassword, newPassword) => {
+      await authApi.changePassword(currentPassword, newPassword);
     },
   };
 });

@@ -8,7 +8,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'vocabflow-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'vocabflow-desktop-secret';
 const JWT_EXPIRES_IN = '30d';
 
 /** 扩展 Express Request 类型，添加 user 字段 */
@@ -46,14 +46,14 @@ export function verifyToken(token: string): { userId: number; username: string }
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: '未登录，请先登录' });
+    res.status(401).json({ error: '未登录' });
     return;
   }
 
   const token = authHeader.slice(7);
   const payload = verifyToken(token);
   if (!payload) {
-    res.status(401).json({ error: '登录已过期，请重新登录' });
+    res.status(401).json({ error: '登录已过期' });
     return;
   }
 

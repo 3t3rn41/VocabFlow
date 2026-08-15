@@ -32,3 +32,8 @@ __pycache__
 *.njsproj
 *.sln
 *.sw?
+
+# Tauri / Rust
+src-tauri/target
+src-tauri/gen
+Cargo.lock
