@@ -1,0 +1,572 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+  }
+  /* 移动端使用动态视口高度，键盘弹出时自动调整 */
+  @supports (height: 100dvh) {
+    html, body, #root {
+      height: 100dvh;
+    }
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    @apply bg-slate-50 text-slate-900;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dark body {
+    @apply bg-slate-900 text-slate-100;
+  }
+  /* 移动端输入框字体不小于 16px，防止 iOS 自动缩放 */
+  input, select, textarea {
+    font-size: 16px;
+  }
+  @media (min-width: 768px) {
+    input, select, textarea {
+      font-size: inherit;
+    }
+  }
+}
+
+/* iOS 安全区底部留白 */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+@layer components {
+  /* 3D 翻转卡片 */
+  .flash-card {
+    transform-style: preserve-3d;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .flash-card.flipped {
+    transform: rotateY(180deg);
+  }
+  .flash-card-face {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .flash-card-back {
+    transform: rotateY(180deg);
+  }
+
+  /* 按钮基础 */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800;
+  }
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  /* 卡片容器 */
+  .card-container {
+    @apply bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700;
+  }
+
+  /* 移动端卡片减小圆角和阴影 */
+  @media (max-width: 767px) {
+    .card-container {
+      @apply rounded-xl shadow-md;
+    }
+  }
+
+  /* 输入框 */
+  .input-base {
+    @apply w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition;
+  }
+
+  /* 进度环 */
+  .progress-ring-circle {
+    transition: stroke-dashoffset 0.6s ease;
+  }
+}
+
+/* ================================================================
+   句子拼写练习动画
+   ================================================================ */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+
+@keyframes scaleBounce {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes drawCircle {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes drawCheck {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes confettiFall {
+  0%   { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(400px) rotate(720deg); opacity: 0; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+  50%      { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0); }
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes charPopIn {
+  0%   { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeInUp   { animation: fadeInUp 0.4s ease forwards; }
+.animate-shake      { animation: shakeX 0.4s ease; }
+.animate-scaleBounce{ animation: scaleBounce 0.5s ease forwards; }
+.animate-slideUpFade{ animation: slideUpFade 0.3s ease forwards; }
+.animate-charPop    { animation: charPopIn 0.15s ease forwards; }
+.pulse-glow         { animation: pulseGlow 2s ease infinite; }
+
+.checkmark-circle {
+  stroke-dasharray: 157;
+  stroke-dashoffset: 157;
+  animation: drawCircle 0.6s ease forwards;
+}
+
+.checkmark-check {
+  stroke-dasharray: 36;
+  stroke-dashoffset: 36;
+  animation: drawCheck 0.3s 0.4s ease forwards;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  border-radius: 2px;
+  animation: confettiFall 1.5s ease forwards;
+}
+
+/* 句子练习进度条平滑过渡 */
+.sentence-progress-bar {
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ================================================================
+   复习评分按钮 — 从底部冒出动画
+   ================================================================ */
+
+@keyframes gradeEmerge {
+  0%   { transform: translateY(40px); opacity: 0; }
+  60%  { transform: translateY(-4px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.animate-gradeEmerge {
+  animation: gradeEmerge 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ================================================================
+   单词槽位 (Word Slots) — 下划线占位拼写
+   ================================================================ */
+
+.word-slots-container {
+  position: relative;
+  border-radius: 12px;
+  padding: 20px 16px;
+  min-height: 80px;
+  background: rgb(248 250 252);            /* slate-50 */
+  border: 1px solid rgb(226 232 240);      /* slate-200 */
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.dark .word-slots-container {
+  background: rgb(15 23 42 / 0.4);         /* slate-900/40 */
+  border-color: rgb(51 65 85);             /* slate-700 */
+}
+
+.word-slots-container:focus-within {
+  border-color: rgb(99 102 241);           /* brand-500 */
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+/* 隐藏输入框 — 覆盖整个词槽区域，透明但可聚焦 */
+.word-input-hidden {
+position: absolute;
+inset: 0;
+width: 100%;
+height: 100%;
+opacity: 0;
+border: none;
+outline: none;
+background: transparent;
+cursor: text;
+z-index: 10;
+font-size: 16px;                         /* 防止 iOS 自动缩放 */
+caret-color: transparent;                /* 隐藏光标，防止浏览器自动滚动到光标位置 */
+}
+
+/* 词槽显示区 — 在隐藏输入框下方 */
+.word-slots-display {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;                    /* 让点击穿透到隐藏输入框 */
+  line-height: 2.4;
+  letter-spacing: 0.01em;
+  text-align: center;                      /* 词槽水平居中 */
+}
+
+/* 词槽组 — 包裹一个词槽及其前导/尾随标点，统一管理间距 */
+.word-slot-group {
+  display: inline-block;
+  margin: 0 6px 2px 0;
+  vertical-align: bottom;
+}
+
+/* 标点符号 — 无下划线，纯文本显示 */
+.word-punct {
+  display: inline-block;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
+  font-size: 1.3rem;
+  line-height: 1.6;
+  color: rgb(100 116 139);              /* slate-500 */
+  vertical-align: bottom;
+  padding: 2px 0;
+}
+.dark .word-punct {
+  color: rgb(148 163 184);              /* slate-400 */
+}
+
+/* 单个词槽 */
+.word-slot {
+  display: inline-block;
+  min-width: 10ch;                       /* 最小宽度 10 个字符 */
+  min-height: 1.8em;
+  border-bottom: 2px solid;
+  border-radius: 0 0 3px 3px;
+  padding: 2px 3px;
+  margin: 0;                             /* 间距由 word-slot-group 管理 */
+  text-align: center;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, monospace;
+  font-size: 1.3rem;
+  line-height: 1.6;
+  transition: border-color 0.25s ease, background-color 0.25s ease;
+  vertical-align: bottom;
+}
+
+/* 移动端词槽缩小字号，防止长句子溢出 */
+@media (max-width: 640px) {
+  .word-slot {
+    font-size: 1.05rem;
+    min-width: 8ch;
+    padding: 2px 2px;
+  }
+  .word-punct {
+    font-size: 1.05rem;
+  }
+  .word-slots-display {
+    line-height: 2.0;
+  }
+  .word-slot-group {
+    margin: 0 4px 2px 0;
+  }
+  .word-slots-container {
+    padding: 14px 10px;
+  }
+}
+
+/* 空词槽 — 未开始输入 */
+.word-slot-empty {
+  border-color: rgb(203 213 225 / 0.7);    /* slate-300/70 */
+}
+.dark .word-slot-empty {
+  border-color: rgb(71 85 105 / 0.7);      /* slate-600/70 */
+}
+
+/* 正在输入的词槽 */
+.word-slot-typing {
+  border-color: rgb(99 102 241);           /* brand-500 */
+  background: rgb(99 102 241 / 0.06);      /* brand-500/6 */
+}
+
+/* 已完成 — 正确 */
+.word-slot-correct {
+  border-color: rgb(16 185 129);           /* emerald-500 */
+  background: rgb(16 185 129 / 0.06);
+}
+
+/* 已完成 — 错误 */
+.word-slot-wrong {
+  border-color: rgb(239 68 68);            /* red-500 */
+  background: rgb(239 68 68 / 0.06);
+}
+
+/* 已完成 — 答案揭示 */
+.word-slot-revealed {
+  border-color: rgb(245 158 11);           /* amber-500 */
+  background: rgb(245 158 11 / 0.06);
+}
+
+/* 闪烁光标 */
+.word-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: rgb(99 102 241);             /* brand-500 */
+  vertical-align: text-bottom;
+  margin-left: 1px;
+  border-radius: 1px;
+  animation: cursorBlink 1s steps(2, start) infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 50%   { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* 词槽弹入动画 */
+@keyframes slotPopIn {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.9); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.slot-pop-in {
+  animation: slotPopIn 0.2s ease forwards;
+}
+
+/* ================================================================
+   新增动画 — v1.6
+   ================================================================ */
+
+/* 卡片滑出（向左） */
+@keyframes cardSlideOutLeft {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(-60px) scale(0.95); }
+}
+.animate-cardSlideOut {
+  animation: cardSlideOutLeft 0.25s ease forwards;
+}
+
+/* 卡片滑入（从右） */
+@keyframes cardSlideInRight {
+  from { opacity: 0; transform: translateX(60px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+.animate-cardSlideIn {
+  animation: cardSlideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 交错列表项渐入 */
+@keyframes staggerFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-stagger {
+  opacity: 0;
+  animation: staggerFadeIn 0.4s ease forwards;
+}
+
+/* 空状态弹跳 */
+@keyframes emptyBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+.animate-emptyBounce {
+  animation: emptyBounce 2s ease-in-out infinite;
+}
+
+/* 进度条微光 */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-bar {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* 数字翻滚渐入 */
+@keyframes numberPop {
+  0%   { opacity: 0; transform: translateY(-8px) scale(0.8); }
+  60%  { opacity: 1; transform: translateY(2px) scale(1.05); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-numberPop {
+  animation: numberPop 0.4s ease forwards;
+}
+
+/* 按钮波纹 */
+@keyframes ripple {
+  to { transform: scale(4); opacity: 0; }
+}
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: scale(0);
+  animation: ripple 0.6s ease;
+  pointer-events: none;
+}
+
+/* 卡片悬停抬升 */
+.card-hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+}
+
+/* 淡入缩放 */
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-fadeInScale {
+  animation: fadeInScale 0.3s ease forwards;
+}
+
+/* 心跳脉冲（提醒徽章） */
+@keyframes heartBeat {
+  0%, 100% { transform: scale(1); }
+  25%      { transform: scale(1.1); }
+  50%      { transform: scale(0.95); }
+  75%      { transform: scale(1.05); }
+}
+.animate-heartBeat {
+  animation: heartBeat 1.5s ease infinite;
+}
+
+/* 滑入淡出（通用） */
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slideInRight {
+  animation: slideInFromRight 0.3s ease forwards;
+}
+
+/* Toast 弹入 */
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(100%) translateY(0); }
+  to   { opacity: 1; transform: translateX(0) translateY(0); }
+}
+.animate-toastIn {
+  animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 简单淡入 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease forwards;
+}
+
+/* ================================================================
+   卡片皮肤 / 主题 — 2.5.1
+   通过 data-card-theme 属性切换 CSS 变量
+   ================================================================ */
+
+/* 默认皮肤（不设置 data-card-theme 或设为 default） */
+:root,
+[data-card-theme="default"] {
+  --card-bg: rgb(255 255 255);
+  --card-border: rgb(226 232 240);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+.dark,
+.dark[data-card-theme="default"] {
+  --card-bg: rgb(30 41 59);
+  --card-border: rgb(51 65 85);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* 护眼绿 */
+[data-card-theme="green"] {
+  --card-bg: rgb(237 247 237);
+  --card-border: rgb(198 226 199);
+  --card-shadow: 0 10px 15px -3px rgba(34, 139, 34, 0.1), 0 4px 6px -4px rgba(34, 139, 34, 0.08);
+}
+.dark[data-card-theme="green"] {
+  --card-bg: rgb(26 44 26);
+  --card-border: rgb(45 80 45);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* 纸质羊皮卷 */
+[data-card-theme="parchment"] {
+  --card-bg: rgb(250 240 218);
+  --card-border: rgb(218 200 168);
+  --card-shadow: 0 10px 15px -3px rgba(160, 120, 60, 0.12), 0 4px 6px -4px rgba(160, 120, 60, 0.08);
+}
+.dark[data-card-theme="parchment"] {
+  --card-bg: rgb(50 40 25);
+  --card-border: rgb(90 75 50);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+}
+
+/* 极简白 */
+[data-card-theme="minimal"] {
+  --card-bg: rgb(255 255 255);
+  --card-border: rgb(245 245 245);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.dark[data-card-theme="minimal"] {
+  --card-bg: rgb(24 24 27);
+  --card-border: rgb(39 39 42);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* 午夜蓝 */
+[data-card-theme="midnight"] {
+  --card-bg: rgb(30 35 60);
+  --card-border: rgb(50 60 100);
+  --card-shadow: 0 10px 15px -3px rgba(30, 40, 80, 0.2), 0 4px 6px -4px rgba(30, 40, 80, 0.1);
+}
+.dark[data-card-theme="midnight"] {
+  --card-bg: rgb(15 18 40);
+  --card-border: rgb(40 50 90);
+  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+}
+
+/* 应用卡片主题变量 */
+.card-container {
+  background-color: var(--card-bg, rgb(255 255 255));
+  border-color: var(--card-border, rgb(226 232 240));
+  box-shadow: var(--card-shadow, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+}
+.dark .card-container {
+  background-color: var(--card-bg, rgb(30 41 59));
+  border-color: var(--card-border, rgb(51 65 85));
+}

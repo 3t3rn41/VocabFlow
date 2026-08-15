@@ -1,0 +1,520 @@
+===============================================================================
+                    VocabFlow 开发进展说明书
+===============================================================================
+
+更新日期：2026-07-19
+项目路径：e:\reviewEnhance\VocabFlow
+当前状态：v1.7 品牌重塑 + UI 去Emoji化 + 全屏模式
+
+===============================================================================
+一、项目概述
+===============================================================================
+
+VocabFlow（涓词）是一个词汇与句子学习应用，前端使用 React + TypeScript，后端使用
+Express + MySQL 提供用户认证、SRS 同步、TTS 代理、ASR 语音识别等服务。
+
+核心功能：
+  1. 单词学习（SRS 间隔重复算法，支持多词书）
+  2. 单词听写模式（听音频拼写单词，SRS 评分）
+  3. 句子拼写练习（中译英，逐词输入，下划线占位）
+  4. 句子 SRS 集成（FSRS 调度，到期句子智能复习）
+  5. 语音识别与发音评分（ASR + 逐词对比）
+  6. 学习提醒功能（浏览器通知 + 定时提醒）
+  7. 学习统计与进度跟踪
+  8. 多词书选择（中考 / 高考 / CET4 / CET6 / 雅思词汇 / 雅思对话 / 语感练习）
+  9. 全屏学习模式（顶栏一键切换，沉浸式学习体验）
+
+===============================================================================
+二、技术栈
+===============================================================================
+
+【前端】
+  - 框架：React 19 + TypeScript
+  - 构建工具：Vite 8
+  - 样式：Tailwind CSS 3 + 自定义 CSS 动画
+  - 状态管理：Zustand 5
+  - 路由：react-router-dom 7
+  - 图表：Recharts 3
+  - TTS：本地缓存音频 (WAV) + 浏览器 Speech Synthesis + mimo TTS (后端代理)
+  - ASR：Web Speech API + 服务端 Whisper 推理 (@huggingface/transformers)
+  - 音频播放：Web Audio API (AudioBufferSourceNode) + HTMLAudioElement 回退
+
+【后端】
+  - 框架：Express 4 + TypeScript (tsx 运行)
+  - 数据库：MySQL 2 (mysql2)
+  - 认证：JWT (jsonwebtoken) + bcryptjs
+  - SRS：ts-fsrs 5 (FSRS-4.5)
+  - ASR：@huggingface/transformers (Whisper 模型，服务端推理)
+  - TTS 代理：转发至 mimo TTS API
+
+===============================================================================
+三、数据来源
+===============================================================================
+
+【词书数据 (src/data/wordbooks/)】
+  1. zhongkao_words.json          — 中考核心词汇（1672 词）
+     格式：{ "word": "中文释义" }
+
+  2. gaokao_words.json            — 高考核心词汇（3429 词）
+     格式：{ "word": "中文释义" }
+
+  3. CET4_words.json              — 大学英语四级词汇（3465 词）
+     格式：{ "word": "中文释义" }
+
+  4. CET6_words.json              — 大学英语六级词汇（1761 词）
+     格式：{ "word": "中文释义" }
+
+  5. IELTS_words.json             — 雅思核心词汇（605 词）
+     格式：含音标、词性、中文释义、英文例句、中文例句翻译
+
+  6. IELTS_sentences.json         — 雅思日常对话（6 个 Band，711 句）
+     格式：按 Band > Topic > Dialogue 层级组织，每句含中文和英文
+
+  7. language_sense_sentences.json — 英语语感分级练习（3 个级别，600 句）
+     格式：按 Level > Topic > Dialogue 层级组织（初中篇/高中篇/大学篇）
+
+【本地音频缓存 (public/audio/)】
+  - word/     — 单词发音 WAV 文件（按词书分类）
+  - sentence/ — 句子发音 WAV 文件（按词书和级别分类）
+  - manifest.json — 文本到音频文件的映射表
+
+===============================================================================
+四、项目结构
+===============================================================================
+
+VocabFlow/
+├── src/                                前端源码
+│   ├── api/
+│   │   ├── client.ts                   API 客户端（fetch 封装 + 认证）
+│   │   └── tts.ts                      TTS 发音（本地音频 + 浏览器TTS + mimo TTS）
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── AppLayout.tsx           主布局（侧边栏 + 顶栏 + 内容区）
+│   │   │   ├── Sidebar.tsx             侧边栏导航
+│   │   │   └── Topbar.tsx              顶栏（主题切换）
+│   │   ├── review/
+│   │   │   ├── FlashCard.tsx           单词复习卡片
+│   │   │   ├── GradeButtons.tsx        评分按钮
+│   │   │   ├── ProgressRing.tsx        进度环形图
+│   │   │   ├── PronunciationResultPanel.tsx  发音评分结果面板
+│   │   │   └── ReviewComplete.tsx      复习完成页
+│   │   ├── ui/
+│   │   │   ├── Button.tsx              按钮组件
+│   │   │   ├── Input.tsx               输入框组件
+│   │   │   ├── Spinner.tsx             加载动画
+│   │   │   └── Toast.tsx               消息提示
+│   │   └── word/
+│   │       └── PronunciationButton.tsx  发音按钮
+│   ├── data/
+│   │   ├── wordbooks.ts               词书数据加载与访问层
+│   │   └── wordbooks/                 词书 JSON 数据文件
+│   ├── hooks/
+│   │   ├── useAppData.ts              应用初始化
+│   │   ├── useIsMobile.ts             移动端检测
+│   │   └── useSpeechRecognition.ts    语音识别 Hook（统一 ASR 管理）
+│   ├── lib/
+│   │   └── asr.ts                     ASR 模块（Web Speech + 服务端 Whisper）
+│   ├── pages/
+│   │   ├── Today.tsx                  学习页（今日进度 + 统计概览）
+│   │   ├── Review.tsx                 单词复习页（SRS 卡片翻转）
+│   │   ├── Words.tsx                  词库页（搜索 + 分页浏览）
+│   │   ├── WordDetail.tsx             单词详情页
+│   │   ├── Sentences.tsx             句子拼写练习页
+│   │   ├── Stats.tsx                  统计页
+│   │   ├── Settings.tsx              设置页
+│   │   ├── WordBookSelection.tsx     词书选择页
+│   │   └── Login.tsx                 登录页
+│   ├── srs/
+│   │   └── engine.ts                  SRS 引擎（ts-fsrs）
+│   ├── stores/
+│   │   ├── ui.ts                      UI 状态（侧边栏折叠、Toast）
+│   │   ├── settings.ts                用户设置（主题、SRS参数等）
+│   │   ├── wordBook.ts                当前词书状态
+│   │   └── auth.ts                    认证状态
+│   ├── types/
+│   │   └── index.ts                   TypeScript 类型定义
+│   ├── utils/
+│   │   ├── constants.ts               常量
+│   │   ├── storage.ts                 localStorage 工具
+│   │   ├── date.ts                    日期工具（北京时间）
+│   │   ├── audio.ts                   音频工具
+│   │   └── pronunciationScore.ts      发音评分（Levenshtein 距离 + 逐词对比）
+│   ├── App.tsx                        根组件（路由 + 主题）
+│   ├── main.tsx                       入口
+│   └── index.css                      全局样式 + 动画
+├── server/                            后端源码
+│   └── src/
+│       ├── index.ts                   Express 服务入口（挂载路由 + 预加载ASR）
+│       ├── db.ts                      MySQL 连接池
+│       ├── srs.ts                     SRS 引擎（服务端 ts-fsrs）
+│       ├── middleware/
+│       │   └── auth.ts                JWT 认证中间件
+│       └── routes/
+│           ├── auth.ts                认证路由（注册/登录）
+│           ├── srs.ts                 SRS 路由（卡片同步）
+│           ├── sentences.ts           句子进度路由
+│           ├── user.ts               用户设置路由
+│           ├── tts.ts                TTS 代理路由（转发 mimo TTS）
+│           └── asr.ts                ASR 路由（Whisper 服务端推理）
+├── public/
+│   └── audio/                         本地音频缓存
+│       ├── word/                      单词发音 WAV
+│       ├── sentence/                  句子发音 WAV
+│       └── manifest.json              文本→音频文件映射表
+├── vite.config.ts
+├── package.json
+└── tsconfig.json
+
+===============================================================================
+五、已完成功能
+===============================================================================
+
+【单词学习模块】
+  ✅ 多词书支持（中考/高考/CET4/CET6/雅思词汇/雅思对话/语感练习）
+  ✅ FSRS-4.5 间隔重复算法（前后端同步）
+  ✅ 卡片翻转复习流程（卡片抬升 + 按钮冒出动画）
+  ✅ 3键/4键评分布局
+  ✅ 键盘快捷键（Space 翻转，1/2/3/4 评分，Ctrl+Z 撤销）
+  ✅ 每日新词上限控制
+  ✅ 复习队列自动生成（到期卡片 + 新词）
+  ✅ TTS 发音（本地音频优先 + 浏览器TTS + mimo TTS 回退）
+  ✅ 复习日志记录
+  ✅ 词组居中显示修复
+
+【句子拼写练习模块】
+  ✅ 雅思日常对话 6 个 Band 711 句
+  ✅ 英语语感分级练习 3 个级别 600 句（初中/高中/大学篇）
+  ✅ 中译英拼写练习
+  ✅ 下划线词槽占位显示（最小宽度 10ch）
+  ✅ 标点符号不使用下划线占位（直接显示为纯文本）
+  ✅ 逐词输入模型（拼写正确自动跳转下一词槽）
+  ✅ Backspace 退回上一词槽
+  ✅ 大小写不敏感判断
+  ✅ Tab 键提示一个字母（渐进式提示）
+  ✅ Space 键跳转下一词
+  ✅ Enter 键自动切换下一句（成功/揭示状态）
+  ✅ 成功动画（撒花 + 勾选标记）
+  ✅ 错误抖动反馈
+  ✅ 连续正确连击显示
+  ✅ 词槽水平居中
+  ✅ 提示功能（每次揭示1个字母，修正错误字母）
+  ✅ 显示答案功能
+  ✅ 朗读功能（Web Audio API 零延迟播放）
+  ✅ 句子进度持久化（服务端 MySQL）
+  ✅ 练习位置持久化（刷新后恢复到上次位置）
+  ✅ 话题进度条
+  ✅ Band/Topic/句子三级导航
+  ✅ 熟知标记（自动/手动）+ 跳过熟知句子
+  ✅ 进入话题时自动跳到第一个未熟知句子
+  ✅ 全部熟知时提示并阻止进入
+  ✅ 熟练度评分（基于停顿、提示次数、拼错次数）
+  ✅ 复习全部（含熟知）开关
+
+【语音识别与发音评分模块】
+  ✅ 双层 ASR 策略确保所有浏览器可用：
+     - Tier 1: Web Speech API（Chrome/Edge/Safari）
+     - Tier 2: 服务端 Whisper 推理（Firefox/所有浏览器）
+  ✅ 服务端 Whisper 模型预加载（启动时自动加载）
+  ✅ 国内镜像加速 + 多镜像重试（hf-mirror.com）
+  ✅ PCM 录音 → WAV 编码 → 服务端推理流程
+  ✅ 发音评分（Levenshtein 距离 + 逐词对比）
+  ✅ 逐词对比展示（正确/错误/遗漏/多余词高亮）
+  ✅ 发音评分结果面板（含重试/确认）
+  ✅ 高分自动标记成功（≥85分）
+
+【音频播放优化】
+  ✅ 三级播放优先级：本地缓存音频 → 浏览器TTS → mimo TTS
+  ✅ 预加载机制：句子加载时 fetch + decodeAudioData 完全解码到内存
+  ✅ Web Audio API 播放（AudioBufferSourceNode.start(0)，零延迟零截断）
+  ✅ HTMLAudioElement 回退方案（canplaythrough + canplay 双事件保障）
+  ✅ 全局播放取消机制（防止多个声音叠加）
+  ✅ 移动端音频解锁（首次交互解锁）
+  ✅ SpeechSynthesis 开头截断 bug 修复（前导空格预热）
+  ✅ Chrome speechSynthesis 15秒暂停 bug 修复（定期 resume）
+
+【统计与进度】
+  ✅ 今日学习进度（环形图 + 数字）
+  ✅ 已学单词 / 总复习次数 / 坚持天数
+  ✅ 词书进度条
+  ✅ 统计页（近30天复习量图表等）
+
+【设置】
+  ✅ 主题切换（跟随系统/浅色/深色，顶栏图标直接切换）
+  ✅ SRS 目标保留率配置
+  ✅ 每日新词上限配置
+  ✅ 键盘布局选择
+  ✅ 自动朗读开关
+  ✅ 切换词书
+
+【UI/UX】
+  ✅ 简洁导航（学习/词库/句子/统计/设置）
+  ✅ 响应式布局（移动端适配）
+  ✅ 深色模式支持
+  ✅ 卡片式设计
+  ✅ 流畅的 CSS 动画（淡入、弹跳、抖动、撒花等）
+  ✅ 单词卡片翻牌动画（卡片抬升 + 按钮冒出）
+  ✅ 全屏模式（顶栏一键切换，Fullscreen API）
+  ✅ 去 Emoji 化设计（v1.7：全面移除 Emoji，改用纯文字/SVG 图标）
+  ✅ 品牌重塑（v1.7：更名为"涓词 VocabFlow"，登录/侧边栏/顶栏/词书选择页统一）
+
+【后端服务】
+  ✅ Express + MySQL 后端
+  ✅ JWT 用户认证（注册/登录）
+  ✅ SRS 卡片同步
+  ✅ 句子进度/熟知/练习记录同步
+  ✅ 用户设置同步
+  ✅ TTS 代理（转发 mimo TTS，避免 CORS）
+  ✅ ASR 服务端推理（Whisper 模型）
+
+===============================================================================
+六、关键设计决策
+===============================================================================
+
+1. 前后端分离架构
+   - 前端 React + Vite，后端 Express + MySQL
+   - 用户数据存储在 MySQL，通过 JWT 认证
+   - 词书数据为本地 JSON 文件，通过 Vite 导入加载
+   - 支持离线使用本地音频缓存
+
+2. TTS 三级播放优先级
+   - 优先使用本地缓存音频 (public/audio/ 下的 WAV 文件)
+   - 回退到浏览器内置 SpeechSynthesis API
+   - 最终回退到 mimo TTS 在线服务（通过后端代理避免 CORS）
+   - 全局播放取消机制确保不会多个声音叠加
+
+3. 音频预加载与 Web Audio API
+   - 句子加载时立即 fetch + decodeAudioData 预解码为 AudioBuffer
+   - 完成句子后通过 AudioBufferSourceNode.start(0) 直接播放
+   - AudioBuffer 已完全解码在内存中，从第一个样本开始播放，零延迟零截断
+   - HTMLAudioElement 作为回退方案（canplaythrough + canplay 双事件保障）
+
+4. 双层 ASR 策略
+   - Tier 1: Web Speech API（Chrome/Edge/Safari 原生支持，实时中间结果）
+   - Tier 2: 服务端 Whisper 推理（通过后端 /api/asr 端点，支持所有浏览器）
+   - 自动检测最佳方案，确保所有设备/浏览器均可使用语音识别
+   - 服务端使用 ScriptProcessorNode 录音 → WAV 编码 → Whisper 推理
+
+5. 句子拼写输入模型
+   - 采用"逐词输入"而非"整句输入"
+   - 每个单词对应一个下划线词槽，标点符号直接显示
+   - 输入正确自动跳转，Backspace 退回上一词
+   - 隐藏 input 捕获键盘输入，可视化层展示词槽状态
+   - 颜色反馈：正确绿色、错误红色、当前输入蓝色边框
+
+6. 熟知跳过机制
+   - 未勾选"复习全部"时，进入话题自动跳到第一个未熟知句子
+   - 翻页时自动跳过熟知句子
+   - 全部熟知时提示并阻止进入话题
+   - 熟练度 ≥85 自动标记熟知
+
+7. SRS 引擎
+   - 使用 ts-fsrs (FSRS-4.5) 算法，比传统 SM-2 更精准
+   - 前后端均使用相同算法，确保数据一致
+   - 保留率可配置
+   - 句子 SRS 集成：复用 srs_cards 表，wordId 使用复合格式
+     srs-sentence:${band}:${topicIdx}:${dialogueIdx}
+   - 熟练度 → Grade 映射：≥85→Easy, ≥65→Good, ≥40→Hard, <40→Again
+   - 到期句子出现在复习队列中，支持 SRS 复习模式
+
+8. 单词听写模式
+   - 听音频拼写单词的独立练习模式 (/dictation)
+   - 自动播放音频，输入拼写，即时正误反馈
+   - 提示功能（逐字母揭示）和看答案功能
+   - 评分后通过 SRS 持久化，与单词复习共享进度
+   - 统计：正确数、连击数、正确率
+
+9. 学习提醒功能
+   - 浏览器 Notification API 通知
+   - 可配置提醒时间（默认 20:00）
+   - 检查当天是否已学习（单词复习日志 / 句子练习记录）
+   - 每日只提醒一次，localStorage 记录上次提醒日期
+   - 设置存储在 localStorage（不同步到后端）
+
+10. 动画系统
+    - 卡片滑入过渡（animate-cardSlideIn）
+    - 交错列表项渐入（animate-stagger + animationDelay）
+    - 空状态弹跳（animate-emptyBounce）
+    - 数字翻滚渐入（animate-numberPop）
+    - 进度条微光效果（shimmer-bar）
+    - 卡片悬停抬升（card-hover-lift）
+    - 淡入缩放（animate-fadeInScale）
+    - Toast 弹入（animate-toastIn）
+    - 心跳脉冲（animate-heartBeat）
+
+11. 全屏学习模式（v1.7）
+    - 顶栏新增全屏切换按钮（⛶/🗗 图标）
+    - 使用 Fullscreen API（requestFullscreen / exitFullscreen）
+    - 监听 fullscreenchange 事件实时同步按钮状态
+    - 支持沉浸式学习，减少浏览器界面干扰
+
+12. 去 Emoji 化设计（v1.7）
+    - 全面移除界面中的 Emoji 图标，改用纯文字或 SVG 图标
+    - 发音按钮：🔊 Emoji → SVG 喇叭图标（矢量缩放清晰）
+    - 词书封面：Emoji 图标 → 书名首字符（统一视觉风格）
+    - 各页面移除装饰性 Emoji（📖📝🔥✅❌👁💡🔄🎉⚠️🇨🇳 等）
+    - 复习完成页：🎉 → "Done" 文字
+    - 提升 UI 一致性，避免不同平台 Emoji 渲染差异
+
+13. 品牌重塑（v1.7）
+    - 应用更名为"涓词 VocabFlow"，增加中文名"涓词"
+    - 统一更新：index.html 标题、侧边栏、顶栏、登录页、词书选择页
+    - 学习提醒通知标题同步更新
+    - 词书选择页标题改为"涓词"主标题 + "VocabFlow"副标题布局
+
+===============================================================================
+七、待办事项 / 未来规划
+===============================================================================
+
+  [x] 句子练习的 SRS 集成（v1.6 完成）
+  [ ] 学习数据导出/导入功能
+  [ ] 自定义词书支持
+  [x] 单词听写模式（v1.6 完成）
+  [x] 学习提醒功能（v1.6 完成）
+  [x] 更多动画细节优化（v1.6 完成）
+  [x] 全屏学习模式（v1.7 完成）
+  [x] 去 Emoji 化 + 品牌重塑（v1.7 完成）
+
+===============================================================================
+八、已知限制
+===============================================================================
+
+1. TTS 发音的本地音频缓存覆盖范围有限，未覆盖的文本回退到
+   浏览器 SpeechSynthesis 或 mimo TTS，音质可能不一致。
+
+2. 服务端 ASR (Whisper) 需要后端服务运行，首次加载模型需要下载
+   （约 40MB），后续从缓存加载。
+
+3. SRS 复习队列在词书切换时不会自动迁移（切换词书后从新词开始）。
+
+4. 词库搜索仅在当前词书范围内进行，不支持跨词书搜索。
+
+5. 全屏模式依赖浏览器 Fullscreen API，部分移动端浏览器可能不支持
+   （iOS Safari 有限支持）。
+
+===============================================================================
+九、开发环境
+===============================================================================
+
+  - Node.js: v18+
+  - 包管理: npm
+  - 前端开发服务器: Vite (默认端口 5173)
+  - 后端开发服务器: tsx watch (默认端口 3001)
+  - 数据库: MySQL
+  - TypeScript 严格模式
+
+启动命令：
+  cd server && npm install   # 安装后端依赖
+  npm install                 # 安装前端依赖
+  npm run dev:all             # 同时启动前端 + 后端
+  npm run dev                 # 仅启动前端
+  npm run server              # 仅启动后端
+  npm run build               # 构建生产版本
+  npm run lint                # 代码检查
+  npm run test                # 运行测试
+
+===============================================================================
+十、版本历史
+===============================================================================
+
+v1.0 (初始版本)
+  - 项目从依赖外部 API 的架构完全重写为纯本地化架构
+  - 移除 sql.js，改用 idb-keyval
+  - 移除认证/同步逻辑
+  - 实现单词 SRS 学习、句子拼写练习核心功能
+
+v1.1 (UI 优化)
+  - 句子拼写改为下划线词槽占位模式
+  - 标点符号不使用占位下划线
+  - 逐词输入 + 自动跳转 + Backspace 退回
+  - 大小写不敏感
+  - 词槽水平居中
+  - Enter 键自动切换下一句
+  - 学习进度位置持久化
+  - 侧边栏精简为 4 tab
+  - 统计数据整合到学习页
+
+v1.2 (提示功能优化)
+  - 下划线占位符最小宽度翻倍（5ch → 10ch）
+  - 提示功能改为每次揭示 1 个字母
+  - Tab 键快捷触发提示
+  - 提示逻辑优化：自动定位到第一个未正确的词槽，修正错误字母
+
+v1.3 (前后端分离 + 多词书)
+  - 引入 Express + MySQL 后端
+  - JWT 用户认证
+  - SRS / 句子进度 / 用户设置同步到服务端
+  - 新增中考/CET4/CET6 词书
+  - 新增英语语感分级练习（初中/高中/大学篇）
+  - 本地音频缓存系统（WAV 文件 + manifest.json）
+  - TTS 三级播放优先级（本地音频 → 浏览器TTS → mimo TTS）
+
+v1.4 (语音识别 + 发音评分)
+  - 集成 ASR 语音识别（双层策略：Web Speech API + 服务端 Whisper）
+  - 服务端 Whisper 模型预加载 + 国内镜像加速
+  - 发音评分（Levenshtein 距离 + 逐词对比展示）
+  - 发音评分结果面板
+  - 高分自动标记成功
+
+v1.5 (音频播放优化 + 交互改进)
+  - 音频预加载：句子加载时 fetch + decodeAudioData 完全解码到内存
+  - Web Audio API 播放（AudioBufferSourceNode，零延迟零截断）
+  - HTMLAudioElement 回退方案（canplaythrough + canplay 双事件）
+  - SpeechSynthesis 开头截断 bug 修复（前导空格预热 + 定期 resume）
+  - 单词卡片翻牌动画（卡片抬升 + 按钮冒出）
+  - 词组居中显示修复
+  - 设置页简化（移除 TTS 说明和危险区卡片）
+  - 顶栏主题图标改为点击直接切换
+  - 熟知跳过优化：进入话题时自动跳到第一个未熟知句子
+  - 全部熟知时提示并阻止进入话题
+
+v1.6 (SRS 集成 + 听写模式 + 学习提醒 + 动画优化)
+  - 句子 SRS 集成：
+    * 复用 srs_cards 表，wordId 使用复合格式 srs-sentence:band:topic:dialogue
+    * 句子完成时自动评分（proficiency → Grade 映射）
+    * SRS 复习模式：到期句子智能队列，Band 选择页显示到期数量
+    * Today 页显示句子 SRS 到期数和复习入口
+  - 单词听写模式：
+    * 新增 /dictation 路由和 Dictation 页面
+    * 听音频拼写，即时正误反馈，提示和看答案功能
+    * SRS 评分持久化，正确率/连击统计
+    * 侧边栏新增听写导航项（单词模式可见）
+    * Today 页新增听写入口按钮
+  - 学习提醒功能：
+    * useStudyReminder Hook，每分钟检查是否需要提醒
+    * 浏览器 Notification API，可配置提醒时间
+    * 检查当日学习状态（单词复习日志 / 句子练习记录）
+    * 设置页新增提醒开关和时间选择
+    * 提醒设置存储在 localStorage
+  - 动画优化：
+    * 10+ 新 CSS 动画（卡片滑入、交错渐入、空状态弹跳、数字翻滚等）
+    * 进度条微光效果（shimmer-bar）
+    * 卡片悬停抬升（card-hover-lift）
+    * Toast 弹入动画
+    * Review/ReviewComplete/Today/Sentences 页面动画增强
+
+v1.7 (品牌重塑 + 去 Emoji 化 + 全屏模式 + Bug 修复) [当前版本]
+  - 品牌重塑：
+    * 应用更名为"涓词 VocabFlow"，增加中文名"涓词"
+    * 统一更新 index.html、Sidebar、Topbar、Login、WordBookSelection
+    * 学习提醒通知标题同步更新
+    * 词书选择页改为"涓词"主标题 + "VocabFlow"副标题布局
+  - 去 Emoji 化设计：
+    * 全面移除界面 Emoji 图标，改用纯文字或 SVG 图标
+    * 发音按钮：🔊 → SVG 喇叭图标（PronunciationButton 组件）
+    * 词书封面：Emoji 图标 → 书名首字符（Settings / WordBookSelection）
+    * 移除装饰性 Emoji（📖📝🔥✅❌👁💡🔄🎉⚠️🇨🇳 等）
+    * 复习完成页：🎉 → "Done" 文字
+    * 提升 UI 一致性，避免跨平台 Emoji 渲染差异
+  - 全屏学习模式：
+    * Topbar 新增全屏切换按钮（⛶/🗗 图标）
+    * 使用 Fullscreen API（requestFullscreen / exitFullscreen）
+    * 监听 fullscreenchange 事件实时同步状态
+  - Bug 修复：
+    * 词书切换弹窗 z-index 提升（z-50 → z-[100]），修复层级遮挡
+    * Sentences.tsx：activeBookId 空值保护，避免 SRS 评分崩溃
+    * tts.ts：移除 Web Audio source.onerror 回调（避免误报）
+    * Sentences.tsx：移除"🇨🇳 中文"冗余标签
+
+===============================================================================
+                              — 文档结束 —
+===============================================================================
