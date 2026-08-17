@@ -1,9 +1,10 @@
 [package]
 name = "vocabflow-desktop"
 version = "1.0.0"
-description = "涓词 VocabFlow — 基于 FSRS 的词汇学习桌面应用"
+description = "VocabFlow 桌面端 — 词汇学习应用"
 authors = ["VocabFlow"]
 edition = "2021"
+rust-version = "1.77"
 
 [lib]
 name = "vocabflow_lib"
@@ -18,5 +19,17 @@ tauri-plugin-shell = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-[features]
-custom-protocol = ["tauri/custom-protocol"]
+[profile.dev]
+incremental = false
+
+# release 配置：优先降低编译内存占用
+# codegen-units=16 将 crate 拆分为多个小编译单元，显著降低峰值内存
+# opt-level=0 关闭优化，减少编译器中间数据
+# lto=false 关闭链接时优化
+# 不使用 strip，避免链接器额外内存扫描
+codegen-units = 16
+lto = false
+opt-level = 0
+debug = false
+strip = false
+panic = "abort"

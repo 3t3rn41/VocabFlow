@@ -14,6 +14,9 @@
  * 确保不会出现多个声音同时播放。
  */
 
+import { ossUrl } from '@/lib/oss';
+import { getApiBase } from '@/api/client';
+
 /* ------------------------------------------------------------------ */
 /* 全局播放取消机制                                                     */
 /* ------------------------------------------------------------------ */
@@ -153,8 +156,8 @@ interface ManifestEntry {
 let _audioMap: Map<string, string> | null = null;
 let _manifestLoading: Promise<void> | null = null;
 
-/** 本地音频基础路径 (Vite public 目录映射到根路径) */
-const LOCAL_AUDIO_BASE = '/audio';
+/** 音频基础路径：指向 OSS 远端，避免打包 exe/msi 时携带超大静态资源 */
+const LOCAL_AUDIO_BASE = ossUrl('/audio');
 
 /**
  * 加载 manifest.json，构建 text → file 映射表。
@@ -390,7 +393,7 @@ function speakWithBrowserTtsInternal(text: string, lang = 'en-US', playbackId: n
 
 function speakWithMimoTts(text: string, _lang = 'en-US', playbackId: number): Promise<void> {
   const token = localStorage.getItem('vocabflow_token');
-  return fetch('/api/tts', {
+  return fetch(`${getApiBase()}/tts`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -8,7 +8,10 @@
     "server": "cd server && npm run dev",
     "dev:all": "concurrently -n web,api -c blue,green \"vite\" \"cd server && npm run dev\"",
     "build": "tsc -b && vite build",
-    "build:desktop": "npm run build && cd server && npm run build:bundle && Copy-Item node_modules/sql.js/dist/sql-wasm.wasm dist/sql-wasm.wasm -Force",
+    "build:desktop": "node scripts/build-desktop.cjs",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "icons": "node scripts/generate-icons.cjs",
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
@@ -16,6 +19,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
     "clsx": "^2.1.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -25,6 +29,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

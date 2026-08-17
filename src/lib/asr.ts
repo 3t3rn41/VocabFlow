@@ -16,7 +16,7 @@
  * 自动检测：优先使用 Web Speech API，不可用时回退到服务端 ASR
  */
 
-import { getToken } from '@/api/client';
+import { getToken, getApiBase } from '@/api/client';
 
 /* ================================================================
    类型定义
@@ -372,7 +372,7 @@ class ServerASR {
 
       // 发送到服务端 ASR 端点
       const token = getToken();
-      const response = await fetch('/api/asr', {
+      const response = await fetch(`${getApiBase()}/asr`, {
         method: 'POST',
         headers: {
           'Content-Type': 'audio/wav',

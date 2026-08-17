@@ -3,12 +3,49 @@
  *
  * 所有数据持久化操作通过 HTTP 请求发送到 Express + MySQL 后端。
  * Vite dev server 通过 /api 代理转发到 http://localhost:3001。
+ * Tauri 桌面端通过 get_api_base 命令获取后端地址。
  * 所有请求自动携带 JWT Token（如已登录）。
  */
 
 import type { StoredCard, ReviewLog } from '@/types';
 
-const API_BASE = '/api';
+/**
+ * 检测当前是否运行在 Tauri 桌面端环境
+ *
+ * Tauri 生产模式下页面 URL 为 http(s)://tauri.localhost/...
+ * 或 tauri://localhost/...
+ * 同时 window.__TAURI_INTERNALS__ 会被注入
+ */
+export function isTauri(): boolean {
+  if (typeof window === 'undefined') return false;
+  // 方式1：检查 Tauri 内部对象
+  if ('__TAURI_INTERNALS__' in window) return true;
+  // 方式2：检查 URL 协议/host（更可靠）
+  const host = window.location?.hostname ?? '';
+  const proto = window.location?.protocol ?? '';
+  return host === 'tauri.localhost' || proto === 'tauri:';
+}
+
+/** 桌面端后端地址缓存 */
+let _desktopApiBase = 'http://localhost:3001';
+
+/** 初始化桌面端 API 地址（从 Tauri 命令获取） */
+export async function initDesktopApiBase(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const result = await invoke<{ url: string }>('get_api_base');
+    if (result?.url) _desktopApiBase = result.url.replace(/\/$/, '');
+  } catch (e) {
+    console.warn('[api] 获取桌面端 API 地址失败，使用默认值:', e);
+  }
+}
+
+/** 获取 API 基础路径（桌面端动态，Web 端固定 /api） */
+export function getApiBase(): string {
+  return isTauri() ? `${_desktopApiBase}/api` : '/api';
+}
+
 const TOKEN_KEY = 'vocabflow_token';
 
 /* ------------------------------------------------------------------ */
@@ -61,7 +98,7 @@ function handleUnauthorized(status: number): void {
 }
 
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     headers: authHeaders(),
   });
   if (!res.ok) {
@@ -73,7 +110,7 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: body ? JSON.stringify(body) : undefined,
@@ -87,7 +124,7 @@ async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 }
 
 async function apiPut<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method: 'PUT',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: body ? JSON.stringify(body) : undefined,
@@ -101,7 +138,7 @@ async function apiPut<T>(path: string, body?: unknown): Promise<T> {
 }
 
 async function apiDelete<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     method: 'DELETE',
     headers: authHeaders(body ? { 'Content-Type': 'application/json' } : undefined),
     body: body ? JSON.stringify(body) : undefined,

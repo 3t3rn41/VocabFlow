@@ -2,6 +2,7 @@ import { PronunciationButton } from '@/components/word/PronunciationButton';
 import { useSettingsStore } from '@/stores/settings';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useWordBookStore } from '@/stores/wordBook';
+import { ossUrl } from '@/lib/oss';
 import type { ReviewItem } from '@/types';
 
 interface FlashCardProps {
@@ -26,7 +27,7 @@ export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
   const mnemonicBookId = item.bookId || activeBookId || '';
   const mnemonicWord = item.word.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_()-]/g, '').replace(/[()/]/g, '');
   const mnemonicImgSrc = mnemonicBookId && mnemonicWord
-    ? `/images/word_mnemonics/${mnemonicBookId}/${mnemonicWord}.webp`
+    ? ossUrl(`/images/word_mnemonics/${mnemonicBookId}/${mnemonicWord}.webp`)
     : '';
 
   return (

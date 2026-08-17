@@ -36,4 +36,7 @@ __pycache__
 # Tauri / Rust
 src-tauri/target
 src-tauri/gen
+src-tauri/false
+.cargo-home
+.cargo
 Cargo.lock

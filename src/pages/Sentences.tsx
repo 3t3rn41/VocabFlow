@@ -23,6 +23,7 @@ import {
 } from '@/utils/sentenceSrs';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
+import { ossUrl } from '@/lib/oss';
 import { clsx } from 'clsx';
 import type { SentenceBand, SentenceTopic } from '@/types';
 
@@ -961,7 +962,7 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
           {activeBookId === 'ielts-sentences' && selectedBand && (
             <div className="my-6 flex justify-center">
               <img
-                src={`/images/sentence_mnemonics/ielts/band_${selectedBand.band}/${String(topicIdx).padStart(3, '0')}_${String(dialogueIdx).padStart(3, '0')}.webp`}
+                src={ossUrl(`/images/sentence_mnemonics/ielts/band_${selectedBand.band}/${String(topicIdx).padStart(3, '0')}_${String(dialogueIdx).padStart(3, '0')}.webp`)}
                 alt="助记图"
                 className="max-w-xs md:max-w-md rounded-xl shadow-lg object-contain"
                 onError={(e) => {
