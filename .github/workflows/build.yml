@@ -2,7 +2,7 @@ name: Build Tauri Desktop App
 
 on:
   push:
-    branches: [master]
+    branches: [main, master]
   workflow_dispatch:
 
 env:
