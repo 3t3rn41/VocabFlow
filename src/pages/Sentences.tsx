@@ -958,11 +958,18 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
             <p className="text-xl md:text-2xl font-medium">{currentDialogue.cn}</p>
           </div>
 
-          {/* 助记图（仅 IELTS 句子书） */}
-          {activeBookId === 'ielts-sentences' && selectedBand && (
+          {/* 助记图 */}
+          {selectedBand && (
+            (activeBookId === 'ielts-sentences' ||
+             activeBookId === 'language-sense')
+          ) && (
             <div className="my-3 flex justify-center">
               <img
-                src={ossUrl(`/images/sentence_mnemonics/ielts/band_${selectedBand.band}/${String(topicIdx).padStart(3, '0')}_${String(dialogueIdx).padStart(3, '0')}.webp`)}
+                src={
+                  activeBookId === 'ielts-sentences'
+                    ? ossUrl(`/images/sentence_mnemonics/ielts/band_${selectedBand.band}/${String(topicIdx).padStart(3, '0')}_${String(dialogueIdx).padStart(3, '0')}.webp`)
+                    : ossUrl(`/images/sentence_mnemonics/language-sense/band_${selectedBand.band}/${String(topicIdx).padStart(3, '0')}.webp`)
+                }
                 alt="助记图"
                 className="max-w-[180px] md:max-w-[240px] rounded-xl shadow-lg object-contain"
                 onError={(e) => {

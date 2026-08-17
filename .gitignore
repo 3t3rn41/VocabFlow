@@ -40,3 +40,9 @@ src-tauri/false
 .cargo-home
 .cargo
 Cargo.lock
+
+# Scripts output (generated locally, not for repo)
+scripts/output/
+
+# Doc/notes
+文生图.md
