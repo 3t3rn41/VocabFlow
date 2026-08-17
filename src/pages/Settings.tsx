@@ -19,24 +19,23 @@ const CARD_THEMES: { value: CardTheme; label: string; desc: string }[] = [
   { value: 'green', label: '护眼绿', desc: '柔和绿色背景' },
   { value: 'parchment', label: '羊皮卷', desc: '复古纸质风格' },
   { value: 'minimal', label: '极简白', desc: '极简阴影' },
-  { value: 'midnight', label: '午夜蓝', desc: '深蓝沉浸式' },
 ];
 
 const DAILY_NEW_OPTIONS = [10, 20, 30, 50, 80];
 const DAILY_REVIEW_OPTIONS = [20, 50, 100, 150, 200];
 
 /* ================================================================
-   词书切换弹窗
+   词书切换内联面板
    ================================================================ */
 
-const BOOK_COVERS: Record<string, { gradient: string }> = {
-  zhongkao: { gradient: 'from-amber-400 via-orange-500 to-red-500' },
-  gaokao: { gradient: 'from-rose-400 via-pink-500 to-purple-500' },
-  cet4: { gradient: 'from-green-400 via-emerald-500 to-teal-500' },
-  cet6: { gradient: 'from-violet-400 via-purple-500 to-indigo-500' },
-  ielts: { gradient: 'from-blue-400 via-indigo-500 to-violet-500' },
-  'ielts-sentences': { gradient: 'from-emerald-400 via-teal-500 to-cyan-500' },
-  'language-sense': { gradient: 'from-fuchsia-400 via-pink-500 to-rose-500' },
+const BOOK_COVERS: Record<string, { bg: string; ring: string }> = {
+  zhongkao: { bg: 'bg-orange-500', ring: 'ring-orange-300' },
+  gaokao: { bg: 'bg-pink-500', ring: 'ring-pink-300' },
+  cet4: { bg: 'bg-emerald-500', ring: 'ring-emerald-300' },
+  cet6: { bg: 'bg-purple-500', ring: 'ring-purple-300' },
+  ielts: { bg: 'bg-indigo-500', ring: 'ring-indigo-300' },
+  'ielts-sentences': { bg: 'bg-teal-500', ring: 'ring-teal-300' },
+  'language-sense': { bg: 'bg-fuchsia-500', ring: 'ring-fuchsia-300' },
 };
 
 function kindLabel(kind: BookKind): string {
@@ -49,41 +48,23 @@ function kindBg(kind: BookKind): string {
     : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-300';
 }
 
-interface BookSwitcherModalProps {
+interface BookSwitcherPanelProps {
   activeBookId: string | null;
   onSelect: (bookId: string) => void;
-  onClose: () => void;
+  expanded: boolean;
 }
 
-function BookSwitcherModal({ activeBookId, onSelect, onClose }: BookSwitcherModalProps) {
+function BookSwitcherPanel({ activeBookId, onSelect, expanded }: BookSwitcherPanelProps) {
   return (
     <div
-      className="fixed top-0 left-0 right-0 bottom-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4 bg-black/40 backdrop-blur-sm animate-fadeIn"
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
-      onClick={onClose}
+      className="grid transition-all duration-300 ease-out"
+      style={{
+        gridTemplateRows: expanded ? '1fr' : '0fr',
+        opacity: expanded ? 1 : 0,
+      }}
     >
-      <div
-        className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-t-2xl md:rounded-2xl bg-white dark:bg-slate-800 shadow-2xl animate-fadeInUp safe-area-pb"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* 弹窗头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-          <div>
-            <h3 className="text-lg font-bold">切换词书</h3>
-            <p className="text-xs text-slate-400 mt-0.5">学习进度不会丢失</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 6l12 12M6 18L18 6" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-
-        {/* 词书列表 */}
-        <div className="p-4 space-y-3">
+      <div className="overflow-hidden">
+        <div className="space-y-2 pt-2">
           {WORD_BOOKS.map((book) => {
             const cover = BOOK_COVERS[book.id] ?? BOOK_COVERS.ielts;
             const isActive = book.id === activeBookId;
@@ -93,7 +74,7 @@ function BookSwitcherModal({ activeBookId, onSelect, onClose }: BookSwitcherModa
                 key={book.id}
                 onClick={() => onSelect(book.id)}
                 className={clsx(
-                  'w-full flex items-center gap-4 p-3 rounded-xl transition-all',
+                  'w-full flex items-center gap-3 p-2.5 rounded-xl transition-all',
                   isActive
                     ? 'bg-brand-50 dark:bg-brand-900/20 ring-2 ring-brand-500'
                     : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 ring-1 ring-slate-200 dark:ring-slate-700',
@@ -101,8 +82,8 @@ function BookSwitcherModal({ activeBookId, onSelect, onClose }: BookSwitcherModa
               >
                 {/* 封面缩略图 */}
                 <div className={clsx(
-                  'flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br flex items-center justify-center text-xl font-bold text-white shadow-md',
-                  cover.gradient,
+                  'flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold text-white shadow-sm',
+                  cover.bg,
                 )}>
                   {book.title.charAt(0)}
                 </div>
@@ -110,23 +91,23 @@ function BookSwitcherModal({ activeBookId, onSelect, onClose }: BookSwitcherModa
                 {/* 书籍信息 */}
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate">
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 truncate text-sm">
                       {book.title}
                     </h4>
                     {isActive && (
-                      <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-brand-500 text-white text-xs font-bold">
-                        ✓ 当前
+                      <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full bg-brand-500 text-white text-[10px] font-bold">
+                        当前
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
                     {book.description}
                   </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={clsx('text-xs px-1.5 py-0.5 rounded-full font-medium', kindBg(book.kind))}>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={clsx('text-[10px] px-1.5 py-0.5 rounded-full font-medium', kindBg(book.kind))}>
                       {kindLabel(book.kind)}
                     </span>
-                    <span className="text-xs text-slate-400 font-mono">
+                    <span className="text-[10px] text-slate-400 font-mono">
                       {book.total.toLocaleString()} {book.kind === 'word' ? '词' : '句'}
                     </span>
                   </div>
@@ -137,20 +118,13 @@ function BookSwitcherModal({ activeBookId, onSelect, onClose }: BookSwitcherModa
                   'flex-shrink-0 transition-transform',
                   isActive ? 'text-brand-500' : 'text-slate-300 dark:text-slate-600',
                 )}>
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
               </button>
             );
           })}
-        </div>
-
-        {/* 弹窗底部 */}
-        <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-700">
-          <p className="text-xs text-center text-slate-400">
-            切换词书不会丢失已有学习进度
-          </p>
         </div>
       </div>
     </div>
@@ -233,7 +207,7 @@ export function Settings() {
         <h3 className="font-semibold">账号</h3>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold">
+            <div className="w-12 h-12 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xl font-bold">
               {user?.username?.charAt(0).toUpperCase() ?? '?'}
             </div>
             <div>
@@ -302,33 +276,50 @@ export function Settings() {
 
       {/* 当前词书 */}
       <section className="card-container p-6 space-y-4">
-        <h3 className="font-semibold">当前词书</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">当前词书</h3>
+          <button
+            onClick={() => setShowBookSwitcher((v) => !v)}
+            className="text-sm text-brand-600 hover:text-brand-700 transition flex items-center gap-1"
+          >
+            {showBookSwitcher ? '收起' : '切换词书'}
+            <svg
+              className={clsx('w-4 h-4 transition-transform duration-300', showBookSwitcher && 'rotate-180')}
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            >
+              <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
         {bookMeta ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-bold">{bookMeta.kind === 'word' ? 'W' : 'S'}</span>
-              <div>
-                <p className="font-medium">{bookMeta.title}</p>
-                <p className="text-sm text-slate-500">{bookMeta.description}</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className={clsx(
+              'flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold text-white shadow-sm',
+              (BOOK_COVERS[activeBookId ?? ''] ?? BOOK_COVERS.ielts).bg,
+            )}>
+              {bookMeta.title.charAt(0)}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowBookSwitcher(true)}>
-              切换
-            </Button>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{bookMeta.title}</p>
+              <p className="text-sm text-slate-500 truncate">{bookMeta.description}</p>
+            </div>
           </div>
         ) : (
           <p className="text-sm text-slate-400">未选择词书</p>
         )}
-      </section>
 
-      {/* 词书切换弹窗 */}
-      {showBookSwitcher && (
-        <BookSwitcherModal
+        {/* 内联词书切换面板 */}
+        <BookSwitcherPanel
           activeBookId={activeBookId}
           onSelect={handleSwitchBook}
-          onClose={() => setShowBookSwitcher(false)}
+          expanded={showBookSwitcher}
         />
-      )}
+        {showBookSwitcher && (
+          <p className="text-xs text-center text-slate-400 pt-1">
+            切换词书不会丢失已有学习进度
+          </p>
+        )}
+      </section>
 
       {/* 学习设置 */}
       <section className="card-container p-6 space-y-4">
@@ -377,55 +368,6 @@ export function Settings() {
             ))}
           </select>
         </div>
-      </section>
-
-      {/* 学习提醒 */}
-      <section className="card-container p-6 space-y-4">
-        <h3 className="font-semibold">学习提醒</h3>
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-sm">启用学习提醒</span>
-            <p className="text-xs text-slate-400 mt-0.5">到达设定时间未学习时发送通知</p>
-          </div>
-          <input
-            type="checkbox"
-            checked={settings.reminderEnabled}
-            onChange={(e) => {
-              settings.patch({ reminderEnabled: e.target.checked });
-              if (e.target.checked && 'Notification' in window && Notification.permission === 'default') {
-                Notification.requestPermission().then((perm) => {
-                  if (perm === 'granted') {
-                    pushToast('通知已开启', 'success');
-                  } else {
-                    pushToast('请在浏览器设置中允许通知', 'error');
-                  }
-                });
-              }
-            }}
-            className="w-4 h-4"
-          />
-        </div>
-        {settings.reminderEnabled && (
-          <div className="flex items-center justify-between">
-            <span className="text-sm">提醒时间</span>
-            <input
-              type="time"
-              value={settings.reminderTime}
-              onChange={(e) => settings.patch({ reminderTime: e.target.value })}
-              className="input-base w-32"
-            />
-          </div>
-        )}
-        {settings.reminderEnabled && 'Notification' in window && Notification.permission !== 'granted' && (
-          <p className="text-xs text-amber-500">
-            浏览器通知权限未开启，请点击上方开关重新授权
-          </p>
-        )}
-        {settings.reminderEnabled && !('Notification' in window) && (
-          <p className="text-xs text-red-400">
-            当前浏览器不支持通知功能
-          </p>
-        )}
       </section>
 
       {/* 学习目标 — 2.3.2 */}
@@ -499,7 +441,6 @@ export function Settings() {
                   ct.value === 'green' && 'bg-[rgb(237,247,237)] border-[rgb(198,226,199)]',
                   ct.value === 'parchment' && 'bg-[rgb(250,240,218)] border-[rgb(218,200,168)]',
                   ct.value === 'minimal' && 'bg-white border-slate-100',
-                  ct.value === 'midnight' && 'bg-[rgb(30,35,60)] border-[rgb(50,60,100)]',
                 )} />
                 <p className="text-xs font-medium">{ct.label}</p>
                 <p className="text-[10px] text-slate-400">{ct.desc}</p>

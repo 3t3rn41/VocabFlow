@@ -4,6 +4,9 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useWordBookStore } from '@/stores/wordBook';
 import { ossUrl } from '@/lib/oss';
 import type { ReviewItem } from '@/types';
+import { useState } from 'react';
+import { addFavorite, isFavorite, removeFavorite } from '@/pages/Favorites';
+import { useUiStore } from '@/stores/ui';
 
 interface FlashCardProps {
   item: ReviewItem;
@@ -19,6 +22,8 @@ export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
   const autoPlayAudio = useSettingsStore((s) => s.autoPlayAudio);
   const isMobile = useIsMobile();
   const activeBookId = useWordBookStore((s) => s.activeBookId);
+  const pushToast = useUiStore((s) => s.pushToast);
+  const [favState, setFavState] = useState(() => isFavorite(item.wordId));
 
   // 将释义按空格分割为多个含义
   const meanings = item.meaning_cn.split(/\s+/).filter(Boolean);
@@ -61,6 +66,39 @@ export function FlashCard({ item, flipped, onFlip }: FlashCardProps) {
             <div className="flex justify-center">
               <PronunciationButton spelling={item.word} />
             </div>
+          </div>
+
+          {/* 生词本按钮 */}
+          <div className="w-full flex justify-end">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (favState) {
+                  removeFavorite(item.wordId);
+                  setFavState(false);
+                  pushToast('已从生词本移除', 'info');
+                } else {
+                  const ok = addFavorite({
+                    wordId: item.wordId,
+                    word: item.word,
+                    meaning_cn: item.meaning_cn,
+                    bookId: item.bookId || activeBookId || '',
+                  });
+                  if (ok) {
+                    setFavState(true);
+                    pushToast('已加入生词本', 'success');
+                  } else {
+                    pushToast('加入失败', 'error');
+                  }
+                }
+              }}
+              className={favState ? 'text-amber-500' : 'text-slate-300 dark:text-slate-500'}
+              title={favState ? '取消收藏' : '加入生词本'}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill={favState ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            </button>
           </div>
 
           <div className="space-y-2 text-left max-w-full w-full pt-3 border-t border-slate-200 dark:border-slate-700">

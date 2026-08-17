@@ -6,33 +6,33 @@ import { clsx } from 'clsx';
 import type { BookKind } from '@/types';
 
 /* 书籍封面配色方案 */
-const BOOK_COVERS: Record<string, { gradient: string; accent: string }> = {
+const BOOK_COVERS: Record<string, { bg: string; accent: string }> = {
   zhongkao: {
-    gradient: 'from-amber-400 via-orange-500 to-red-500',
+    bg: 'bg-orange-500',
     accent: 'text-orange-500',
   },
   gaokao: {
-    gradient: 'from-rose-400 via-pink-500 to-purple-500',
+    bg: 'bg-pink-500',
     accent: 'text-pink-500',
   },
   cet4: {
-    gradient: 'from-green-400 via-emerald-500 to-teal-500',
+    bg: 'bg-emerald-500',
     accent: 'text-emerald-500',
   },
   cet6: {
-    gradient: 'from-violet-400 via-purple-500 to-indigo-500',
+    bg: 'bg-purple-500',
     accent: 'text-purple-500',
   },
   ielts: {
-    gradient: 'from-blue-400 via-indigo-500 to-violet-500',
+    bg: 'bg-indigo-500',
     accent: 'text-indigo-500',
   },
   'ielts-sentences': {
-    gradient: 'from-emerald-400 via-teal-500 to-cyan-500',
+    bg: 'bg-teal-500',
     accent: 'text-emerald-500',
   },
   'language-sense': {
-    gradient: 'from-fuchsia-400 via-pink-500 to-rose-500',
+    bg: 'bg-fuchsia-500',
     accent: 'text-fuchsia-500',
   },
 };
@@ -60,7 +60,7 @@ export function WordBookSelection() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 md:p-6 bg-gradient-to-br from-slate-50 via-brand-50/30 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+    <div className="min-h-screen flex items-center justify-center p-4 md:p-6 bg-slate-50 dark:bg-slate-900">
       <div className="w-full max-w-3xl">
         {/* 标题区 */}
         <div className="text-center mb-6 md:mb-10">
@@ -68,7 +68,7 @@ export function WordBookSelection() {
             <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
             选择词书
           </div>
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-brand-600 to-indigo-600 dark:from-brand-400 dark:to-indigo-400 bg-clip-text text-transparent mb-1">
+          <h1 className="text-3xl md:text-4xl font-bold text-brand-600 dark:text-brand-400 mb-1">
             涓词
           </h1>
           <p className="text-xs text-slate-400 dark:text-slate-500 tracking-widest uppercase mb-3">
@@ -97,12 +97,8 @@ export function WordBookSelection() {
                     : 'ring-1 ring-slate-200 dark:ring-slate-700 shadow-md',
                 )}
               >
-                {/* 封面渐变区 */}
-                <div className={clsx('relative h-24 md:h-28 bg-gradient-to-br', cover.gradient)}>
-                  <div className="absolute inset-0 opacity-20" style={{
-                    backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 30%, white 1px, transparent 1px)',
-                    backgroundSize: '24px 24px',
-                  }} />
+                {/* 封面纯色区 */}
+                <div className={clsx('relative h-24 md:h-28', cover.bg)}>
                   <div className="absolute top-3 right-3">
                     {isActive ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 text-brand-600 text-xs font-bold backdrop-blur">
@@ -150,8 +146,8 @@ export function WordBookSelection() {
 
                 {/* 悬停时底部高亮条 */}
                 <div className={clsx(
-                  'absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r transition-opacity duration-300',
-                  cover.gradient,
+                  'absolute bottom-0 left-0 right-0 h-1 transition-opacity duration-300',
+                  cover.bg,
                   isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
                 )} />
               </button>

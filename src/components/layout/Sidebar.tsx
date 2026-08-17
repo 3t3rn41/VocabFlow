@@ -33,7 +33,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: '/today', label: '学习', icon: 'home', section: 'main' },
+  { to: '/today', label: '主页', icon: 'home', section: 'main' },
   { to: '/review', label: '复习', icon: 'review', wordOnly: true, section: 'practice' },
   { to: '/dictation', label: '听写', icon: 'dictation', wordOnly: true, section: 'practice' },
   { to: '/quiz', label: '选择', icon: 'quiz', wordOnly: true, section: 'practice' },
@@ -133,7 +133,7 @@ export function Sidebar() {
               collapsed && 'justify-center',
             )}
           >
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-sm font-bold">
               {username.charAt(0).toUpperCase()}
             </div>
             {!collapsed && (

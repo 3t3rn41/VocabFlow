@@ -548,18 +548,6 @@ caret-color: transparent;                /* 隐藏光标，防止浏览器自动
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-/* 午夜蓝 */
-[data-card-theme="midnight"] {
-  --card-bg: rgb(30 35 60);
-  --card-border: rgb(50 60 100);
-  --card-shadow: 0 10px 15px -3px rgba(30, 40, 80, 0.2), 0 4px 6px -4px rgba(30, 40, 80, 0.1);
-}
-.dark[data-card-theme="midnight"] {
-  --card-bg: rgb(15 18 40);
-  --card-border: rgb(40 50 90);
-  --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-}
-
 /* 应用卡片主题变量 */
 .card-container {
   background-color: var(--card-bg, rgb(255 255 255));

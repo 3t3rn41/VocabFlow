@@ -29,16 +29,32 @@
   "bundle": {
     "active": true,
     "targets": ["msi", "nsis"],
-    "resources": [
-      "../server/dist/vocabflow-server-bundle.cjs",
-      "../server/dist/sql-wasm.wasm"
-    ],
+    "resources": {
+      "../server/dist/vocabflow-server-bundle.cjs": "vocabflow-server-bundle.cjs",
+      "../server/dist/sql-wasm.wasm": "sql-wasm.wasm"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "allowDowngrades": true,
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "languages": ["SimpChinese"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine"
+      },
+      "wix": {
+        "language": "zh-CN"
+      }
+    }
   }
 }

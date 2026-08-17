@@ -21,9 +21,11 @@ let _saveTimer: ReturnType<typeof setTimeout> | null = null;
 async function getDb() {
   if (_db) return _db;
   const dir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+  const home = process.env.USERPROFILE || process.env.HOME || '.';
   const wasmCandidates = [
     path.join(dir, 'sql-wasm.wasm'),
     path.join(dir, '..', 'sql-wasm.wasm'),
+    path.join(home, '.vocabflow', 'sql-wasm.wasm'),
     path.join(dir, 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
     path.join(dir, '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
     path.join(process.cwd(), 'sql-wasm.wasm'),

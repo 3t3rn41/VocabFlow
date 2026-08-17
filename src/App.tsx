@@ -20,7 +20,6 @@ import { Favorites } from '@/pages/Favorites';
 import { Stats } from '@/pages/Stats';
 import { ToastContainer } from '@/components/ui/Toast';
 import { Spinner } from '@/components/ui/Spinner';
-import { useStudyReminder } from '@/hooks/useStudyReminder';
 
 export default function App() {
   const theme = useSettingsStore((s) => s.theme);
@@ -32,8 +31,6 @@ export default function App() {
   const initBook = useWordBookStore((s) => s.init);
 
   const { isAuthenticated, loading: authLoading, user, init: initAuth } = useAuthStore();
-
-  useStudyReminder();
 
   useEffect(() => {
     initAuth();

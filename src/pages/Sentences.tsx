@@ -888,33 +888,44 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
             </div>
           )}
 
-          {/* 顶部导航 */}
+          {/* 顶部导航 + 话题信息 */}
           <div className="flex items-center justify-between">
-            <button
-              onClick={() => { 
-                if (srsReviewQueue) exitSrsReview();
-                else { setSelectedTopic(null); setStreak(0); }
-              }}
-              className="text-sm text-slate-500 hover:text-slate-700 transition"
-            >
-              ← {srsReviewQueue ? '退出复习' : '返回话题'}
-            </button>
-          <div className="flex items-center gap-3">
-            {isMastered && (
-              <span className="text-xs text-purple-500 font-medium bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded-full">
-                ⭐ 已熟知
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                onClick={() => { 
+                  if (srsReviewQueue) exitSrsReview();
+                  else { setSelectedTopic(null); setStreak(0); }
+                }}
+                className="text-sm text-slate-500 hover:text-slate-700 transition shrink-0"
+              >
+                ← {srsReviewQueue ? '退出复习' : '返回'}
+              </button>
+              <span className="text-xs text-slate-400 shrink-0">
+                Band {selectedBand?.band} · {selectedBand?.level}
               </span>
-            )}
-            {streak > 0 && (
-              <span className="text-sm text-orange-500 font-bold animate-scaleBounce">
-                🔥 {streak}
+              <span className="text-sm font-medium text-brand-600 truncate">
+                {selectedTopic.topic}
               </span>
-            )}
-            <span className="text-sm text-slate-500">
-              {dialogueIdx + 1} / {selectedTopic.dialogues.length}
-            </span>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              {topicMastered > 0 && (
+                <span className="text-xs text-purple-400">⭐{topicMastered}</span>
+              )}
+              {isMastered && (
+                <span className="text-xs text-purple-500 font-medium bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded-full">
+                  已熟知
+                </span>
+              )}
+              {streak > 0 && (
+                <span className="text-sm text-orange-500 font-bold animate-scaleBounce">
+                  🔥 {streak}
+                </span>
+              )}
+              <span className="text-sm text-slate-500">
+                {dialogueIdx + 1}/{selectedTopic.dialogues.length}
+              </span>
+            </div>
           </div>
-        </div>
 
         {/* 进度条 */}
         <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -922,17 +933,6 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
             className="h-full bg-gradient-to-r from-brand-500 to-emerald-500 rounded-full sentence-progress-bar"
             style={{ width: `${topicPct}%` }}
           />
-        </div>
-
-        {/* 话题信息 */}
-        <div className="text-center">
-          <span className="text-xs text-slate-400">
-            Band {selectedBand?.band} · {selectedBand?.level}
-          </span>
-          <p className="text-sm font-medium text-brand-600">{selectedTopic.topic}</p>
-          {topicMastered > 0 && (
-            <p className="text-xs text-purple-400 mt-0.5">⭐ {topicMastered} 句已熟知</p>
-          )}
         </div>
 
         {/* 主练习卡片 */}
@@ -960,11 +960,11 @@ const slotsContainerRef = useRef<HTMLDivElement>(null);
 
           {/* 助记图（仅 IELTS 句子书） */}
           {activeBookId === 'ielts-sentences' && selectedBand && (
-            <div className="my-6 flex justify-center">
+            <div className="my-3 flex justify-center">
               <img
                 src={ossUrl(`/images/sentence_mnemonics/ielts/band_${selectedBand.band}/${String(topicIdx).padStart(3, '0')}_${String(dialogueIdx).padStart(3, '0')}.webp`)}
                 alt="助记图"
-                className="max-w-xs md:max-w-md rounded-xl shadow-lg object-contain"
+                className="max-w-[180px] md:max-w-[240px] rounded-xl shadow-lg object-contain"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}

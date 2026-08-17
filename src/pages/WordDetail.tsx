@@ -5,6 +5,8 @@ import { getWordById } from '@/data/wordbooks';
 import { loadCard } from '@/srs/engine';
 import type { StoredCard } from '@/types';
 import { PronunciationButton } from '@/components/word/PronunciationButton';
+import { addFavorite, isFavorite, removeFavorite } from '@/pages/Favorites';
+import { useUiStore } from '@/stores/ui';
 
 /** FSRS 遗忘曲线计算：保留率 = (1 + t/(9*S))^(-1) */
 function computeRetention(daysSinceReview: number, stability: number): number {
@@ -15,11 +17,17 @@ function computeRetention(daysSinceReview: number, stability: number): number {
 export function WordDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const pushToast = useUiStore((s) => s.pushToast);
 
   const wordId = id ? decodeURIComponent(id) : '';
   const word = getWordById(wordId);
   const [card, setCard] = useState<StoredCard | null>(null);
   const [curveData, setCurveData] = useState<{ day: number; retention: number }[]>([]);
+  const [favState, setFavState] = useState(false);
+
+  useEffect(() => {
+    if (wordId) setFavState(isFavorite(wordId));
+  }, [wordId]);
 
   useEffect(() => {
     if (!wordId) return;
@@ -83,6 +91,34 @@ export function WordDetail() {
           <h1 className="text-3xl md:text-4xl font-bold">{word.word}</h1>
           <PronunciationButton spelling={word.word} />
           {word.phonetic && <span className="text-sm text-slate-400">{word.phonetic}</span>}
+          <button
+            onClick={() => {
+              if (favState) {
+                removeFavorite(word.id);
+                setFavState(false);
+                pushToast('已从生词本移除', 'info');
+              } else {
+                const ok = addFavorite({
+                  wordId: word.id,
+                  word: word.word,
+                  meaning_cn: word.meaning_cn,
+                  bookId: word.bookId,
+                });
+                if (ok) {
+                  setFavState(true);
+                  pushToast('已加入生词本', 'success');
+                } else {
+                  pushToast('加入失败', 'error');
+                }
+              }
+            }}
+            className={favState ? 'text-amber-500' : 'text-slate-300 dark:text-slate-500'}
+            title={favState ? '取消收藏' : '加入生词本'}
+          >
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill={favState ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+          </button>
         </div>
 
         {meanings.length > 0 && (
